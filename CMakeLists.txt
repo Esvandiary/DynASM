@@ -5,12 +5,18 @@ add_subdirectory("minilua")
 add_library(dynasm INTERFACE)
 target_include_directories(dynasm INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
-function(add_dasm_compile_command infile outfile arch)
-	add_custom_command(
-		OUTPUT "${outfile}"
-		COMMAND "$<TARGET_FILE:minilua>" "dynasm.lua" -o "${outfile}" -D "${arch}" "${infile}"
-		MAIN_DEPENDENCY "${infile}"
-		WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/dynasm"
-		VERBATIM
-		COMMENT "Preprocessing DynASM source file ${infile} ...")
+set(DYNASM_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE INTERNAL "Base directory for dynasm library")
+function(add_dasm_compile_command infile outfile)
+    set(extra_args)
+    foreach(define IN LISTS ARGN)
+        list(APPEND extra_args "-D" "${define}")
+    endforeach()
+
+    add_custom_command(
+        OUTPUT "${outfile}"
+        COMMAND "$<TARGET_FILE:minilua>" "${DYNASM_SOURCE_DIR}/src/dynasm.lua" -o "${outfile}" ${extra_args} "${infile}"
+        MAIN_DEPENDENCY "${infile}"
+        VERBATIM
+        USES_TERMINAL
+        COMMENT "Preprocessing DynASM source file ${infile} ...")
 endfunction()
