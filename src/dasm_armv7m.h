@@ -44,6 +44,7 @@ enum {
 #define DASM_S_UNDEF_PC   0x22000000
 
 /* Macros to convert positions (8 bit section + 24 bit index). */
+// TOCHECK
 #define DASM_POS2IDX(pos)    ((pos)&0x00ffffff)
 #define DASM_POS2BIAS(pos)   ((pos)&0xff000000)
 #define DASM_SEC2POS(sec)    ((sec)<<24)
@@ -271,6 +272,7 @@ void dasm_put(Dst_DECL, int start, ...)
       case DASM_IMM:
       case DASM_IMM16:
 #ifdef DASM_CHECKS
+        // TOCHECK
         CK((n & ((1<<((ins>>10)&31))-1)) == 0, RANGE_I);
         if ((ins & 0x8000))
           CK(((n + (1<<(((ins>>5)&31)-1)))>>((ins>>5)&31)) == 0, RANGE_I);
@@ -285,6 +287,7 @@ void dasm_put(Dst_DECL, int start, ...)
         /* fallthrough */
       case DASM_IMML8:
       case DASM_IMML12:
+        // TOCHECK
         CK(n >= 0 ? ((n>>((ins>>5)&31)) == 0) :
                     (((-n)>>((ins>>5)&31)) == 0), RANGE_I);
         b[pos++] = n;
@@ -396,6 +399,7 @@ int dasm_encode(Dst_DECL, void *buffer)
           n = DASM_EXTERN(Dst, (unsigned char *)cp, (ins&2047), !(ins&2048));
           goto patchrel;
         case DASM_ALIGN:
+          // TOCHECK: magic instruction? nop perhaps?
           ins &= 255; while ((((char *)cp - base) & ins)) *cp++ = 0xe1a00000;
           break;
         case DASM_REL_LG:
@@ -405,6 +409,7 @@ int dasm_encode(Dst_DECL, void *buffer)
           CK(n >= 0, UNDEF_PC);
           n = *DASM_POS2PTR(D, n) - (int)((char *)cp - base) - 4;
         patchrel:
+          // TOCHECK: all of this, so much... different ranges on Thumb-2 I imagine
           if ((ins & 0x800) == 0) {
             CK((n & 3) == 0 && ((n+0x02000000) >> 26) == 0, RANGE_REL);
             cp[-1] |= ((n >> 2) & 0x00ffffff);
@@ -425,19 +430,23 @@ int dasm_encode(Dst_DECL, void *buffer)
           break;
         case DASM_LABEL_PC: break;
         case DASM_IMM:
+            // TOCHECK: this bit-mashing
           cp[-1] |= ((n>>((ins>>10)&31)) & ((1<<((ins>>5)&31))-1)) << (ins&31);
           break;
         case DASM_IMM12:
           cp[-1] |= dasm_imm12((unsigned int)n);
           break;
         case DASM_IMM16:
+          // TOCHECK
           cp[-1] |= ((n & 0xf000) << 4) | (n & 0x0fff);
           break;
         case DASM_IMML8: patchimml8:
+          // TOCHECK
           cp[-1] |= n >= 0 ? (0x00800000 | (n & 0x0f) | ((n & 0xf0) << 4)) :
                              ((-n & 0x0f) | ((-n & 0xf0) << 4));
           break;
         case DASM_IMML12: case DASM_IMMV8: patchimml:
+          // TOCHECK
           cp[-1] |= n >= 0 ? (0x00800000 | n) : (-n);
           break;
         default: *cp++ = ins; break;

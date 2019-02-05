@@ -715,6 +715,7 @@ local function parse_label(label, def)
   werror("bad label `"..label.."'")
 end
 
+-- TOCHECK
 local function parse_load(params, nparams, n, op)
   local oplo = band(op, 255)
   local ext, ldrd = (oplo ~= 0), (oplo == 208)
@@ -787,6 +788,7 @@ local function parse_load(params, nparams, n, op)
   return op
 end
 
+-- TOCHECK
 local function parse_vload(q)
   local reg, imm = match(q, "^%[%s*([^,%s]*)%s*(.*)%]$")
   if reg then
@@ -827,6 +829,7 @@ end
 
 -- Handle opcodes defined with template strings.
 local function parse_template(params, template, nparams, pos)
+  -- TODO: change this encoding to handle 16-bit and 32-bit Thumb-2 instructions
   local op = tonumber(sub(template, 1, 8), 16)
   local n = 1
   local vr = "s"
