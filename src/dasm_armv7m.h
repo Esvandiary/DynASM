@@ -44,7 +44,6 @@ enum {
 #define DASM_S_UNDEF_PC   0x22000000
 
 /* Macros to convert positions (8 bit section + 24 bit index). */
-// TOCHECK
 #define DASM_POS2IDX(pos)    ((pos)&0x00ffffff)
 #define DASM_POS2BIAS(pos)   ((pos)&0xff000000)
 #define DASM_SEC2POS(sec)    ((sec)<<24)

@@ -240,6 +240,7 @@ local map_cond = {
 ------------------------------------------------------------------------------
 
 -- Template strings for ARM instructions.
+-- TODO: change basically all of these :(
 local map_op = {
   -- Basic data processing instructions.
   and_3 = "e0000000DNPs",
