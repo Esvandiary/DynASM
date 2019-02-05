@@ -7,8 +7,8 @@
 
 -- Module information:
 local _info = {
-  arch =	"arm",
-  description =	"DynASM ARM module",
+  arch =	"armv7a",
+  description =	"DynASM ARMv7A module",
   version =	"1.4.0",
   vernum =	 10400,
   release =	"2015-10-18",

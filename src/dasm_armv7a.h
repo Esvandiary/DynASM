@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define DASM_ARCH		"arm"
+#define DASM_ARCH		"armv7a"
 
 #ifndef DASM_EXTERN
 #define DASM_EXTERN(a,b,c,d)	0
