@@ -858,7 +858,7 @@ local function parse_template(params, template, nparams, pos)
     elseif p == "P" then
       local imm = match(q, "^#(.*)$")
       if imm then
-        op = op + parse_imm12(imm) + 0x02000000
+        op = op + parse_imm12(imm) + 0x02000000 -- TODO: why this magic?
       else
         op = op + parse_gpr(q)
       end
