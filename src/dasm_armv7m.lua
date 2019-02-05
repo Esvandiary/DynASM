@@ -7,13 +7,13 @@
 
 -- Module information:
 local _info = {
-  arch =	"armv7m",
-  description =	"DynASM ARMv7M module",
-  version =	"1.4.0",
-  vernum =	 10400,
-  release =	"2019-02-05",
-  author =	"Mike Pall, Andy Martin",
-  license =	"MIT",
+  arch =           "armv7m",
+  description =    "DynASM ARMv7M module",
+  version =        "1.4.0",
+  vernum =         10400,
+  release =        "2019-02-05",
+  author =         "Mike Pall, Andy Martin",
+  license =        "MIT",
 }
 
 -- Exported glue functions for the arch-specific module.
@@ -221,8 +221,8 @@ local map_archdef = { sp = "r13", lr = "r14", pc = "r15", }
 -- Int. register name -> ext. name.
 local map_reg_rev = { r13 = "sp", r14 = "lr", r15 = "pc", }
 
-local map_type = {}		-- Type name -> { ctype, reg }
-local ctypenum = 0		-- Type number (for Dt... macros).
+local map_type = {}                -- Type name -> { ctype, reg }
+local ctypenum = 0                -- Type number (for Dt... macros).
 
 -- Reverse defines for registers.
 function _M.revdef(s)
@@ -285,30 +285,30 @@ local map_op = {
   -- Multiply and multiply-accumulate.
   mul_3 = "e0000090NMSs",
   mla_4 = "e0200090NMSDs",
-  umaal_4 = "e0400090DNMSs",	-- v6
-  mls_4 = "e0600090DNMSs",	-- v6T2
+  umaal_4 = "e0400090DNMSs",        -- v6
+  mls_4 = "e0600090DNMSs",        -- v6T2
   umull_4 = "e0800090DNMSs",
   umlal_4 = "e0a00090DNMSs",
   smull_4 = "e0c00090DNMSs",
   smlal_4 = "e0e00090DNMSs",
 
   -- Halfword multiply and multiply-accumulate.
-  smlabb_4 = "e1000080NMSD",	-- v5TE
-  smlatb_4 = "e10000a0NMSD",	-- v5TE
-  smlabt_4 = "e10000c0NMSD",	-- v5TE
-  smlatt_4 = "e10000e0NMSD",	-- v5TE
-  smlawb_4 = "e1200080NMSD",	-- v5TE
-  smulwb_3 = "e12000a0NMS",	-- v5TE
-  smlawt_4 = "e12000c0NMSD",	-- v5TE
-  smulwt_3 = "e12000e0NMS",	-- v5TE
-  smlalbb_4 = "e1400080NMSD",	-- v5TE
-  smlaltb_4 = "e14000a0NMSD",	-- v5TE
-  smlalbt_4 = "e14000c0NMSD",	-- v5TE
-  smlaltt_4 = "e14000e0NMSD",	-- v5TE
-  smulbb_3 = "e1600080NMS",	-- v5TE
-  smultb_3 = "e16000a0NMS",	-- v5TE
-  smulbt_3 = "e16000c0NMS",	-- v5TE
-  smultt_3 = "e16000e0NMS",	-- v5TE
+  smlabb_4 = "e1000080NMSD",        -- v5TE
+  smlatb_4 = "e10000a0NMSD",        -- v5TE
+  smlabt_4 = "e10000c0NMSD",        -- v5TE
+  smlatt_4 = "e10000e0NMSD",        -- v5TE
+  smlawb_4 = "e1200080NMSD",        -- v5TE
+  smulwb_3 = "e12000a0NMS",        -- v5TE
+  smlawt_4 = "e12000c0NMSD",        -- v5TE
+  smulwt_3 = "e12000e0NMS",        -- v5TE
+  smlalbb_4 = "e1400080NMSD",        -- v5TE
+  smlaltb_4 = "e14000a0NMSD",        -- v5TE
+  smlalbt_4 = "e14000c0NMSD",        -- v5TE
+  smlaltt_4 = "e14000e0NMSD",        -- v5TE
+  smulbb_3 = "e1600080NMS",        -- v5TE
+  smultb_3 = "e16000a0NMS",        -- v5TE
+  smulbt_3 = "e16000c0NMS",        -- v5TE
+  smultt_3 = "e16000e0NMS",        -- v5TE
 
   -- Miscellaneous data processing instructions.
   clz_2 = "e16f0f10DM", -- v5T
@@ -345,10 +345,10 @@ local map_op = {
   uxth_2 = "e6ff0070DM", uxth_3 = "e6ff0070DMv", -- v6
 
   -- Saturating instructions.
-  qadd_3 = "e1000050DMN",	-- v5TE
-  qsub_3 = "e1200050DMN",	-- v5TE
-  qdadd_3 = "e1400050DMN",	-- v5TE
-  qdsub_3 = "e1600050DMN",	-- v5TE
+  qadd_3 = "e1000050DMN",        -- v5TE
+  qsub_3 = "e1200050DMN",        -- v5TE
+  qdadd_3 = "e1400050DMN",        -- v5TE
+  qdsub_3 = "e1600050DMN",        -- v5TE
   -- Note: the X for ssat* encodes sat_imm-1, not sat_imm.
   ssat_3 = "e6a00010DXM", ssat_4 = "e6a00010DXMp", -- v6
   usat_3 = "e6e00010DXM", usat_4 = "e6e00010DXMp", -- v6
@@ -474,8 +474,8 @@ local map_op = {
   vstmdb_2 = "ed000a00or",
   vpush_1 = "ed2d0a00r",
 
-  ["vmov.f32_2"] = "eeb00a40dm|eeb00a00dY",	-- #imm is VFPv3 only
-  ["vmov.f64_2"] = "eeb00b40Gdm|eeb00b00GdY",	-- #imm is VFPv3 only
+  ["vmov.f32_2"] = "eeb00a40dm|eeb00a00dY",        -- #imm is VFPv3 only
+  ["vmov.f64_2"] = "eeb00b40Gdm|eeb00b00GdY",        -- #imm is VFPv3 only
   vmov_2 = "ee100a10Dn|ee000a10nD",
   vmov_3 = "ec500a10DNm|ec400a10mDN|ec500b10GDNm|ec400b10GmDN",
 
@@ -584,7 +584,7 @@ end
 
 local function parse_vrlist(reglist)
   local ta, ra, tb, rb = match(reglist,
-			   "^{%s*([sd])([0-9]+)%s*%-%s*([sd])([0-9]+)%s*}$")
+                           "^{%s*([sd])([0-9]+)%s*%-%s*([sd])([0-9]+)%s*}$")
   ra, rb = tonumber(ra), tonumber(rb)
   if ta and ta == tb and ra and rb and ra <= 31 and rb <= 31 and ra <= rb then
     local nr = rb+1 - ra
@@ -605,11 +605,11 @@ local function parse_imm(imm, bits, shift, scale, signed)
     local m = sar(n, scale)
     if shl(m, scale) == n then
       if signed then
-	local s = sar(m, bits-1)
-	if s == 0 then return shl(m, shift)
-	elseif s == -1 then return shl(m + shl(1, bits), shift) end
+        local s = sar(m, bits-1)
+        if s == 0 then return shl(m, shift)
+        elseif s == -1 then return shl(m + shl(1, bits), shift) end
       else
-	if sar(m, bits) == 0 then return shl(m, shift) end
+        if sar(m, bits) == 0 then return shl(m, shift) end
       end
     end
     werror("out of range immediate `"..imm.."'")
@@ -652,14 +652,14 @@ local function parse_imm_load(imm, ext)
   if n then
     if ext then
       if n >= -255 and n <= 255 then
-	local up = 0x00800000
-	if n < 0 then n = -n; up = 0 end
-	return shl(band(n, 0xf0), 4) + band(n, 0x0f) + up
+        local up = 0x00800000
+        if n < 0 then n = -n; up = 0 end
+        return shl(band(n, 0xf0), 4) + band(n, 0x0f) + up
       end
     else
       if n >= -4095 and n <= 4095 then
-	if n >= 0 then return n+0x00800000 end
-	return -n
+        if n >= 0 then return n+0x00800000 end
+        return -n
       end
     end
     werror("out of range immediate `"..imm.."'")
@@ -729,18 +729,18 @@ local function parse_load(params, nparams, n, op)
   if not p1 then
     if not p2 then
       if match(pn, "^[<>=%-]") or match(pn, "^extern%s+") then
-	local mode, n, s = parse_label(pn, false)
-	waction("REL_"..mode, n + (ext and 0x1800 or 0x0800), s, 1)
-	return op + 15 * 65536 + 0x01000000 + (ext and 0x00400000 or 0)
+        local mode, n, s = parse_label(pn, false)
+        waction("REL_"..mode, n + (ext and 0x1800 or 0x0800), s, 1)
+        return op + 15 * 65536 + 0x01000000 + (ext and 0x00400000 or 0)
       end
       local reg, tailr = match(pn, "^([%w_:]+)%s*(.*)$")
       if reg and tailr ~= "" then
-	local d, tp = parse_gpr(reg)
-	if tp then
-	  waction(ext and "IMML8" or "IMML12", 32768 + 32*(ext and 8 or 12),
-		  format(tp.ctypefmt, tailr))
-	  return op + shl(d, 16) + 0x01000000 + (ext and 0x00400000 or 0)
-	end
+        local d, tp = parse_gpr(reg)
+        if tp then
+          waction(ext and "IMML8" or "IMML12", 32768 + 32*(ext and 8 or 12),
+                  format(tp.ctypefmt, tailr))
+          return op + shl(d, 16) + 0x01000000 + (ext and 0x00400000 or 0)
+        end
       end
     end
     werror("expected address operand")
@@ -767,17 +767,17 @@ local function parse_load(params, nparams, n, op)
     if p2 ~= "" then
       local imm = match(p2, "^,%s*#(.*)$")
       if imm then
-	local m = parse_imm_load(imm, ext)
-	op = op + m + (ext and 0x00400000 or 0)
+        local m = parse_imm_load(imm, ext)
+        op = op + m + (ext and 0x00400000 or 0)
       else
-	local p2a, p3 = match(p2, "^,%s*([^,%s]*)%s*,?%s*(.*)$")
-	local m, neg = parse_gpr_pm(p2a)
-	if ldrd and (m == d or m-1 == d) then werror("register conflict") end
-	op = op + m + (neg and 0 or 0x00800000) + (ext and 0 or 0x02000000)
-	if p3 ~= "" then
-	  if ext then werror("too many parameters") end
-	  op = op + parse_shift(p3)
-	end
+        local p2a, p3 = match(p2, "^,%s*([^,%s]*)%s*,?%s*(.*)$")
+        local m, neg = parse_gpr_pm(p2a)
+        if ldrd and (m == d or m-1 == d) then werror("register conflict") end
+        op = op + m + (neg and 0 or 0x00800000) + (ext and 0 or 0x02000000)
+        if p3 ~= "" then
+          if ext then werror("too many parameters") end
+          op = op + parse_shift(p3)
+        end
       end
     else
       if wb == "!" then werror("bad use of '!'") end
@@ -796,13 +796,13 @@ local function parse_vload(q)
     if imm then
       local n = tonumber(imm)
       if n then
-	if n >= -1020 and n <= 1020 and n%4 == 0 then
-	  return d + (n >= 0 and n/4+0x00800000 or -n/4)
-	end
-	werror("out of range immediate `"..imm.."'")
+        if n >= -1020 and n <= 1020 and n%4 == 0 then
+          return d + (n >= 0 and n/4+0x00800000 or -n/4)
+        end
+        werror("out of range immediate `"..imm.."'")
       else
-	waction("IMMV8", 32768 + 32*8, imm)
-	return d
+        waction("IMMV8", 32768 + 32*8, imm)
+        return d
       end
     end
   else
@@ -815,8 +815,8 @@ local function parse_vload(q)
     if reg and tailr ~= "" then
       local d, tp = parse_gpr(reg)
       if tp then
-	waction("IMMV8", 32768 + 32*8, format(tp.ctypefmt, tailr))
-	return shl(d, 16)
+        waction("IMMV8", 32768 + 32*8, format(tp.ctypefmt, tailr))
+        return shl(d, 16)
       end
     end
   end
@@ -851,9 +851,9 @@ local function parse_template(params, template, nparams, pos)
     elseif p == "P" then
       local imm = match(q, "^#(.*)$")
       if imm then
-	op = op + parse_imm12(imm) + 0x02000000
+        op = op + parse_imm12(imm) + 0x02000000
       else
-	op = op + parse_gpr(q)
+        op = op + parse_gpr(q)
       end
       n = n + 1
     elseif p == "p" then
@@ -867,12 +867,12 @@ local function parse_template(params, template, nparams, pos)
       waction("REL_"..mode, n, s, 1)
     elseif p == "C" then -- blx gpr vs. blx label.
       if match(q, "^([%w_]+):(r1?[0-9])$") or match(q, "^r(1?[0-9])$") then
-	op = op + parse_gpr(q)
+        op = op + parse_gpr(q)
       else
-	if op < 0xe0000000 then werror("unconditional instruction") end
-	local mode, n, s = parse_label(q, false)
-	waction("REL_"..mode, n, s, 1)
-	op = 0xfa000000
+        if op < 0xe0000000 then werror("unconditional instruction") end
+        local mode, n, s = parse_label(q, false)
+        waction("REL_"..mode, n, s, 1)
+        op = 0xfa000000
       end
     elseif p == "F" then
       vr = "s"
@@ -893,22 +893,22 @@ local function parse_template(params, template, nparams, pos)
     elseif p == "w" then
       local imm = match(q, "^#(.*)$")
       if imm then
-	op = op + parse_imm(q, 5, 7, 0, false); n = n + 1
+        op = op + parse_imm(q, 5, 7, 0, false); n = n + 1
       else
-	op = op + shl(parse_gpr(q), 8) + 16
+        op = op + shl(parse_gpr(q), 8) + 16
       end
     elseif p == "X" then
       op = op + parse_imm(q, 5, 16, 0, false); n = n + 1
     elseif p == "Y" then
       local imm = tonumber(match(q, "^#(.*)$")); n = n + 1
       if not imm or shr(imm, 8) ~= 0 then
-	werror("bad immediate operand")
+        werror("bad immediate operand")
       end
       op = op + shl(band(imm, 0xf0), 12) + band(imm, 0x0f)
     elseif p == "K" then
       local imm = tonumber(match(q, "^#(.*)$")); n = n + 1
       if not imm or shr(imm, 16) ~= 0 then
-	werror("bad immediate operand")
+        werror("bad immediate operand")
       end
       op = op + shl(band(imm, 0xfff0), 4) + band(imm, 0x000f)
     elseif p == "T" then
@@ -1012,8 +1012,8 @@ map_op[".align_1"] = function(params)
     for i=1,8 do
       x = x / 2
       if x == 1 then
-	waction("ALIGN", align-1, nil, 1) -- Action byte is 2**n-1.
-	return
+        waction("ALIGN", align-1, nil, 1) -- Action byte is 2**n-1.
+        return
       end
     end
   end
@@ -1110,8 +1110,8 @@ function _M.mergemaps(map_coreop, map_def)
     if cv then
       local v = rawget(t, k1..k2)
       if type(v) == "string" then
-	local scv = format("%x", cv)
-	return gsub(scv..sub(v, 2), "|e", "|"..scv)
+        local scv = format("%x", cv)
+        return gsub(scv..sub(v, 2), "|e", "|"..scv)
       end
     end
   end })
