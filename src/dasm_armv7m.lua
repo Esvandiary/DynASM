@@ -1110,6 +1110,7 @@ function _M.mergemaps(map_coreop, map_def)
     local v = map_coreop[k]
     if v then return v end
     local k1, cc, k2 = match(k, "^(.-)(..)([._].*)$")
+    -- TODO: handle conditionals appropriately for Thumb-2 (this is wrong)
     local cv = map_cond[cc]
     if cv then
       local v = rawget(t, k1..k2)
