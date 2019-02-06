@@ -398,8 +398,7 @@ int dasm_encode(Dst_DECL, void *buffer)
           n = DASM_EXTERN(Dst, (unsigned char *)cp, (ins&2047), !(ins&2048));
           goto patchrel;
         case DASM_ALIGN:
-          // TOCHECK: magic instruction? nop perhaps?
-          ins &= 255; while ((((char *)cp - base) & ins)) *cp++ = 0xe1a00000;
+          ins &= 255; while ((((char *)cp - base) & ins)) *cp++ = 0xf3af0000; // NOP
           break;
         case DASM_REL_LG:
           CK(n >= 0, UNDEF_LG);
@@ -429,7 +428,7 @@ int dasm_encode(Dst_DECL, void *buffer)
           break;
         case DASM_LABEL_PC: break;
         case DASM_IMM:
-          // TOCHECK: this bit-mashing
+          // *scale* the runtime-found value n down, restrict it to its *bits* count, then *shift* it up
           cp[-1] |= ((n>>((ins>>10)&31)) & ((1<<((ins>>5)&31))-1)) << (ins&31);
           break;
         case DASM_IMM12:

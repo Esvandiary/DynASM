@@ -673,7 +673,7 @@ local function parse_imm_load(imm, ext)
   end
 end
 
-local function parse_shift(shift, gprok)
+local function parse_shift(shift)
   if shift == "rrx" then
     return 3 * 32
   else
@@ -681,10 +681,10 @@ local function parse_shift(shift, gprok)
     s = map_shift[s]
     if not s then werror("expected shift operand") end
     if sub(s2, 1, 1) == "#" then
-      return parse_imm(s2, 5, 7, 0, false) + shl(s, 5)
+      -- shift in bit 4, then the bottom 2 bits of imm starting bit 6, then the other 3 bits starting bit 12
+      return shl(s, 4) + parse_imm(s2, 2, 6, 0, false) + parse_imm(s2, 3, 12, 2, false)
     else
-      if not gprok then werror("expected immediate shift operand") end
-      return shl(parse_gpr(s2), 8) + shl(s, 5) + 16
+      werror("expected immediate shift operand")
     end
   end
 end
@@ -792,7 +792,6 @@ local function parse_load(params, nparams, n, op)
   return op
 end
 
--- TOCHECK
 local function parse_vload(q)
   local reg, imm = match(q, "^%[%s*([^,%s]*)%s*(.*)%]$")
   if reg then
@@ -833,7 +832,6 @@ end
 
 -- Handle opcodes defined with template strings.
 local function parse_template(params, template, nparams, pos)
-  -- TODO: change this encoding to handle 16-bit and 32-bit Thumb-2 instructions
   local op = tonumber(sub(template, 1, 8), 16)
   local n = 1
   local vr = "s"
@@ -842,13 +840,15 @@ local function parse_template(params, template, nparams, pos)
   for p in gmatch(sub(template, 9), ".") do
     local q = params[n]
     if p == "D" then
+      op = op + shl(parse_gpr(q), 8); n = n + 1
+    elseif p == "T" then
       op = op + shl(parse_gpr(q), 12); n = n + 1
     elseif p == "N" then
       op = op + shl(parse_gpr(q), 16); n = n + 1
-    elseif p == "S" then
-      op = op + shl(parse_gpr(q), 8); n = n + 1
     elseif p == "M" then
       op = op + parse_gpr(q); n = n + 1
+    elseif p == "Z" then  -- M, and M in the N slot
+      local mgpr = parse_gpr(q); op = op + mgpr + shl(mgpr, 16); n = n + 1
     elseif p == "d" then
       local r,h = parse_vr(q, vr); op = op+shl(r,12)+shl(h,22); n = n + 1
     elseif p == "n" then
@@ -858,7 +858,7 @@ local function parse_template(params, template, nparams, pos)
     elseif p == "P" then
       local imm = match(q, "^#(.*)$")
       if imm then
-        op = op + parse_imm12(imm) + 0x02000000 -- TODO: why this magic?
+        op = op + parse_imm12(imm) + 0x02000000
       else
         op = op + parse_gpr(q)
       end
@@ -872,20 +872,11 @@ local function parse_template(params, template, nparams, pos)
     elseif p == "B" then
       local mode, n, s = parse_label(q, false)
       waction("REL_"..mode, n, s, 1)
-    elseif p == "C" then -- blx gpr vs. blx label.
-      if match(q, "^([%w_]+):(r1?[0-9])$") or match(q, "^r(1?[0-9])$") then
-        op = op + parse_gpr(q)
-      else
-        if op < 0xe0000000 then werror("unconditional instruction") end
-        local mode, n, s = parse_label(q, false)
-        waction("REL_"..mode, n, s, 1)
-        op = 0xfa000000
-      end
     elseif p == "F" then
       vr = "s"
     elseif p == "G" then
       vr = "d"
-    elseif p == "o" then
+    elseif p == "o" then  -- N with possible writeback
       local r, wb = match(q, "^([^!]*)(!?)$")
       op = op + shl(parse_gpr(r), 16) + (wb == "!" and 0x00200000 or 0)
       n = n + 1
@@ -906,7 +897,7 @@ local function parse_template(params, template, nparams, pos)
       end
     elseif p == "X" then
       op = op + parse_imm(q, 5, 16, 0, false); n = n + 1
-    elseif p == "Y" then
+    elseif p == "Y" then  -- used by VFP
       local imm = tonumber(match(q, "^#(.*)$")); n = n + 1
       if not imm or shr(imm, 8) ~= 0 then
         werror("bad immediate operand")
