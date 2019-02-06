@@ -524,6 +524,7 @@ do
   for k,v in pairs(map_op) do
     if sub(v, -1) == "s" then
       local v2 = sub(v, 1, 2)..char(byte(v, 3)+1)..sub(v, 4, -2)
+      -- TODO: fix this logic for .w names
       t[sub(k, 1, -3).."s"..sub(k, -2)] = v2
     end
   end
@@ -569,6 +570,8 @@ local function parse_vr(expr, tp)
   werror("bad register name `"..expr.."'")
 end
 
+-- TODO: handle stupid difference between 1 reg set and >1 in POP/PUSH
+-- normally reglist is [15:0], if only 1 set then it lives in [15:12] (Rt)
 local function parse_reglist(reglist)
   reglist = match(reglist, "^{%s*([^}]*)}$")
   if not reglist then werror("register list expected") end
@@ -719,9 +722,9 @@ end
 -- TOCHECK
 local function parse_load(params, nparams, n, op)
   local oplo = band(op, 255)
-  local ext, ldrd = (oplo ~= 0), (oplo == 208)
+  local ext, ldrd = (oplo ~= 0), (oplo == 208) -- TODO: correct ldrd opcode
   local d
-  if (ldrd or oplo == 240) then
+  if (ldrd or oplo == 240) then -- TOCHECK: 240
     d = band(shr(op, 12), 15)
     if band(d, 1) ~= 0 then werror("odd destination register") end
   end
@@ -747,7 +750,7 @@ local function parse_load(params, nparams, n, op)
     end
     werror("expected address operand")
   end
-  if wb == "!" then op = op + 0x00200000 end
+  if wb == "!" then op = op + 0x00200000 end -- correct for Thumb-2
   if p2 then
     if wb == "!" then werror("bad use of '!'") end
     local p3 = params[n+2]
