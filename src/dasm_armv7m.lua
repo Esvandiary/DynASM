@@ -240,194 +240,245 @@ local map_cond = {
 ------------------------------------------------------------------------------
 
 -- Template strings for ARM instructions.
--- TODO: change basically all of these :(
 local map_op = {
-  -- Basic data processing instructions.
-  and_3 = "e0000000DNPs",
-  eor_3 = "e0200000DNPs",
-  sub_3 = "e0400000DNPs",
-  rsb_3 = "e0600000DNPs",
-  add_3 = "e0800000DNPs",
-  adc_3 = "e0a00000DNPs",
-  sbc_3 = "e0c00000DNPs",
-  rsc_3 = "e0e00000DNPs",
-  tst_2 = "e1100000NP",
-  teq_2 = "e1300000NP",
-  cmp_2 = "e1500000NP",
-  cmn_2 = "e1700000NP",
-  orr_3 = "e1800000DNPs",
-  mov_2 = "e1a00000DPs",
-  bic_3 = "e1c00000DNPs",
-  mvn_2 = "e1e00000DPs",
+  adc_3 = "f1400000DNIs|eb400000DNMs",
+  adc_4 = "eb400000DNMps",
+  add_3 = "f1000000DNIs|eb000000DNMs",
+  add_4 = "eb000000DNMps",
+  addw_3 = "f2000000DNI",
+  adr_2 = "f20f0000DJ", -- bits 21/23 different depending on direction: before = 1, after = 0
+  and_3 = "f0000000DNIs|ea000000DNMs",
+  and_4 = "ea000000DNMps",
+  asr_3 = "ea4f0020DMxs|fa40f000DNMs",
+  b_1 = "f0009000W",
+  bal_1 = "f0009000W",
+  beq_1 = "f0008000V",
+  bne_1 = "f0408000V",
+  bcs_1 = "f0808000V",
+  bcc_1 = "f0c08000V",
+  bmi_1 = "f1008000V",
+  bpl_1 = "f1408000V",
+  bvs_1 = "f1808000V",
+  bvc_1 = "f1c08000V",
+  bhi_1 = "f2008000V",
+  bls_1 = "f2408000V",
+  bge_1 = "f2808000V",
+  blt_1 = "f2c08000V",
+  bgt_1 = "f3008000V",
+  ble_1 = "f3408000V",
+  bl_1 = "f000d000W",
+  blal_1 = "f000d000W",
+  blx_1 = "4780bf00w",   -- with bonus nop
+  bx_1 = "4700bf00w",    -- with bonus nop
+  bfc_3 = "f36f0000Dxz",
+  bfi_4 = "f3600000DNxz",
+  bic_3 = "f0200000DNIs|ea200000DNMs",
+  bic_4 = "ea200000DNMps",
+  bkpt_1 = "be00bf00K",  -- with bonus nop
+  cbz_2 = "b100bf00kC",  -- with bonus nop
+  cbnz_2 = "b900bf00kC", -- with bonus nop
+  clz_2 = "fab0f080DZ",
+  cmn_2 = "f1100f00NI|eb100f00NM", -- condition flags only -- condition flags only
+  cmn_3 = "eb100f00NMp",-- condition flags only
+  cmp_2 = "f1b00f00NI|ebb00f00NM", -- condition flags only -- condition flags only
+  cmp_3 = "ebb00f00NMp",-- condition flags only
+  eor_3 = "f0800000DNIs|ea800000DNMs",
+  eor_4 = "ea800000DNMps",
+  ldm_2 = "e8900000oR",
+  ldmdb_2 = "e9100000oR",
+  ldmea_2 = "e9100000oR",
+  ldr_2 = "f8500000TL",
+  ldr_3 = "f8500000TL",
+  ldr_4 = "f8500000TL",
+  ldrb_2 = "f8100000TL",
+  ldrb_3 = "f8100000TL",
+  ldrb_4 = "f8100000TL",
+  ldrbt_3 = "f8100e00TL",
+  ldrd_2 = "e8500000DT",
+  ldrd_3 = "e8500000DTL",
+  ldrd_4 = "e8500000DTL",
+  ldrh_2 = "f8300000TL",
+  ldrh_3 = "f8300000TL",
+  ldrht_3 = "f8300e00TL",
+  ldrsb_2 = "f9100000TL",
+  ldrsb_3 = "f9100000TL",
+  ldrsbt_3 = "f9100e00TL",
+  ldrsh_2 = "f9300000TL",
+  ldrsh_3 = "f9300000TL",
+  ldrsht_3 = "f9300e00TL",
+  ldrt_3 = "f8500e00TL",
+  lsl_3 = "ea4f0000DMxs|fa0ff000DNMs",
+  lsr_3 = "ea4f0010DMxs|fa2ff000DNMs",
+  mla_4 = "fb000000DNMT",
+  mls_4 = "fb000010DNMT",
+  mov_2 = "f04f0000DIs|ea4f0000DMs",
+  movw_2 = "f2400000Dy",
+  movt_2 = "f2c00000Dy",
+  mul_3 = "fb00f000DNM",
+  mvn_2 = "f06f0000DIs|ea6f0000DMps",
+  neg_2 = "f1d00000DN",   -- alias for RSBS Rd, Rn, #0
+  nop_0 = "bf00bf00|f3af8000",
+  orn_3 = "f0600000DNIs|ea600000DNMs",
+  orn_4 = "ea600000DNMps",
+  orr_3 = "f0400000DNIs|ea400000DNMs",
+  orr_4 = "ea400000DNMps",
+  pkhbt_3 = "eac00000DNM",  -- v7E-M
+  pkhbt_4 = "eac00000DNMx", -- v7E-M
+  pkhtb_3 = "eac00020DNM",  -- v7E-M
+  pkhtb_4 = "eac00020DNMx", -- v7E-M
+  pop_1 = "e8bd0000R|f85d0b04T",
+  push_1 = "e92d0000R|f84d0d00T",
+  qadd_3 = "fa80f080DMN",   -- v7E-M
+  qadd16_3 = "fa90f010DNM", -- v7E-M
+  qadd8_3 = "fa80f010DNM",  -- v7E-M
+  qasx_3 = "faa0f010DNM",   -- v7E-M
+  qdadd_3 = "fa80f090DMN",  -- v7E-M
+  qdsub_3 = "fa80f0b0DMN",  -- v7E-M
+  qsax_3 = "fae0f010DNM",   -- v7E-M
+  qsub_3 = "fa80f0a0DMN",   -- v7E-M
+  qsub16_3 = "fad0f010DNM", -- v7E-M
+  qsub8_3 = "fac0f010DNM",  -- v7E-M
+  rbit_2 = "fa90f0a0DM",
+  rev_2 = "fa90f080DM",
+  rev16_2 = "fa90f090DM",
+  revsh_2 = "fa90f0b0DM",
+  ror_3 = "ea4f0030DMxs|fa60f000DNMs",
+  rrx_2 = "ea4f0030DMs",
+  rsb_3 = "f1c00000DNIs|ebc00000DNMs",
+  rsb_4 = "ebc00000DNMps",
+  sadd16_3 = "fa90f000DNM", -- v7E-M
+  sadd8_3 = "fa80f000DNM",  -- v7E-M
+  sasx_3 = "faa0f000DNM",   -- v7E-M
+  sbc_3 = "f1600000DNIs|eb600000DNMs",
+  sbc_4 = "eb600000DNMps",
+  sbfx_4 = "f3400000DNxz",
+  sdiv_3 = "fb90f0f0DNM",
+  sel_3 = "faa0f080DNM",    -- v7E-M
+  shadd16_3 = "fa90f020DNM",-- v7E-M
+  shadd8_3 = "fa80f020DNM", -- v7E-M
+  shsax_3 = "fae0f020DNM",  -- v7E-M
+  shsub16_3 = "fad0f020DNM",-- v7E-M
+  shsub8_3 = "fac0f020DNM", -- v7E-M
+  smlabb_4 = "fb100000DNMT",-- v7E-M
+  smlabt_4 = "fb100010DNMT",-- v7E-M
+  smlatb_4 = "fb100020DNMT",-- v7E-M
+  smlatt_4 = "fb100030DNMT",-- v7E-M
+  smlad_4 = "fb200000DNMT", -- v7E-M
+  smladx_4 = "fb200010DNMT",-- v7E-M
+  smlal_4 = "fbc00000TDNM",
+  smlalbb_4 = "fbc00080TDNM", -- v7E-M
+  smlalbt_4 = "fbc00090TDNM", -- v7E-M
+  smlaltb_4 = "fbc000a0TDNM", -- v7E-M
+  smlaltt_4 = "fbc000b0TDNM", -- v7E-M
+  smlald_4 = "fbc000c0TDNM",  -- v7E-M
+  smlaldx_4 = "fbc000d0TDNM", -- v7E-M
+  smlawb_4 = "fb300000DNMT",  -- v7E-M
+  smlawt_4 = "fb300010DNMT",  -- v7E-M
+  smlsd_4 = "fb400000DNMT",   -- v7E-M
+  smlsdx_4 = "fb400010DNMT",  -- v7E-M
+  smlsld_4 = "fbd000c0TDNM",  -- v7E-M
+  smlsldx_4 = "fbd000d0TDNM", -- v7E-M
+  smmla_4 = "fb500000DNMT",   -- v7E-M
+  smmlar_4 = "fb500010DNMT",  -- v7E-M
+  smmls_4 = "fb600000DNMT",   -- v7E-M
+  smmlsr_4 = "fb600010DNMT",  -- v7E-M
+  smmul_3 = "fb50f000DNM",    -- v7E-M
+  smmulr_3 = "fb50f010DNM",   -- v7E-M
+  smuad_3 = "fb20f000DNM",    -- v7E-M
+  smuadx_3 = "fb20f010DNM",   -- v7E-M
+  smulbb_3 = "fb10f000DNM",   -- v7E-M
+  smulbt_3 = "fb10f010DNM",   -- v7E-M
+  smultb_3 = "fb10f020DNM",   -- v7E-M
+  smultt_3 = "fb10f030DNM",   -- v7E-M
+  smull_4 = "fb800000TDNM",
+  smulwb_3 = "fb30f000DNM",   -- v7E-M
+  smulwt_3 = "fb30f010DNM",   -- v7E-M
+  smusd_3 = "fb40f000DNM",    -- v7E-M
+  smusdx_3 = "fb40f010DNM",   -- v7E-M
+  ssat_3 = "f3000000DzN",     -- bit 21 is "sh", unhandled
+  ssat_4 = "f3000000DzNx",    -- bit 21 is "sh", unhandled
+  ssat16_3 = "f3200000DzN",   -- imm is 4 bits not 5 :(
+  ssax_3 = "fae0f000DNM",     -- v7E-M
+  ssub16_3 = "fad0f000DNM",   -- v7E-M
+  ssub8_3 = "fac0f000DNM",    -- v7E-M
+  stm_2 = "e8800000oR",
+  stmia_2 = "e8800000oR",
+  stmea_2 = "e8800000oR",
+  stmdb_2 = "e9000000oR",
+  stmfd_2 = "e9000000oR",
+  str_3 = "f8400000TL",
+  str_4 = "f8400000TL",
+  strb_3 = "f8000000TL",
+  strb_4 = "f8000000TL",
+  strbt_3 = "f8000e00TL",
+  strd_4 = "e8400000TDL",
+  strh_2 = "f8200000TL",
+  strh_3 = "f8200000TL",
+  strht_2 = "f8200e00TL",
+  strht_3 = "f8200e00TL",
+  strt_3 = "f8400e00TL",
+  sub_3 = "f1a00000DNIs|eba00000DNMs",
+  sub_4 = "eba00000DNMps",
+  subw_3 = "f2a00000DNI",
+  sxtab_3 = "fa40f080DNM",    -- v7E-M
+  sxtab_4 = "fa40f080DNMv",   -- v7E-M
+  sxtab16_3 = "fa20f080DNM",  -- v7E-M
+  sxtab16_4 = "fa20f080DNMv", -- v7E-M
+  sxtah_3 = "fa00f080DNM",    -- v7E-M
+  sxtah_4 = "fa00f080DNMv",   -- v7E-M
+  sxtb_2 = "fa4ff080DM",
+  sxtb_3 = "fa4ff080DMv",
+  sxtb16_2 = "fa2ff080DM",    -- v7E-M
+  sxtb16_3 = "fa2ff080DMv",   -- v7E-M
+  sxth_2 = "fa0ff080DM",
+  sxth_3 = "fa0ff080DMv",
+  tbb_2 = "e8d0f000NM",
+  tbh_2 = "e8d0f010NM",
+  teq_2 = "f0900f00NI|ea900f00NM",  -- condition flags only  -- condition flags only
+  teq_3 = "ea900f00NMI", -- condition flags only
+  tst_2 = "f0100f00NI|ea100f00NM",  -- condition flags only  -- condition flags only
+  tst_3 = "ea100f00NMI", -- condition flags only
+  uadd16_3 = "fa90f040DNM", -- v7E-M
+  uadd8_3 = "fa80f040DNM",  -- v7E-M
+  uasx_3 = "faa0f040DNM",   -- v7E-M
+  ubfx_4 = "f3c00000DNxz",
+  udiv_3 = "fbb0f0f0DNM",
+  uhadd16_3 = "fa90f060DNM",-- v7E-M
+  uhadd8_3 = "fa80f060DNM", -- v7E-M
+  uhasx_3 = "faa0f060DNM",  -- v7E-M
+  uhsax_3 = "fae0f060DNM",  -- v7E-M
+  uhsub16_3 = "fad0f060DNM",-- v7E-M
+  uhsub8_3 = "fac0f060DNM", -- v7E-M
+  umaal_4 = "fbe00060TDNM", -- v7E-M
+  umlal_4 = "fbe00000TDNM",
+  umull_4 = "fba00000TDNM",
+  uqadd16_3 = "fa90f050DNM",-- v7E-M
+  uqadd8_3 = "fa80f050DNM", -- v7E-M
+  uqasx_3 = "faa0f050DNM",  -- v7E-M
+  uqsax_3 = "fae0f050DNM",  -- v7E-M
+  uqsub16_3 = "fad0f050DNM",-- v7E-M
+  uqsub8_3 = "fac0f050DNM", -- v7E-M
+  usad8_3 = "fb70f000DNM",  -- v7E-M
+  usada8_4 = "fb700000DNMT",-- v7E-M
+  usat_3 = "f3800000DzN",   -- bit 21 is "sh", unhandled
+  usat_4 = "f3800000DzNx",  -- bit 21 is "sh", unhandled
+  usat16_3 = "f3a00000DzN", -- v7E-M, imm is actually 4 bits :(
+  usax_3 = "fae0f040DNM",   -- v7E-M
+  usub16_3 = "fad0f040DNM", -- v7E-M
+  usub8_3 = "fac0f040DNM",  -- v7E-M
+  uxtab_3 = "fa50f080DNM",   -- v7E-M
+  uxtab_4 = "fa50f080DNMv",  -- v7E-M
+  uxtab16_3 = "fa30f080DNM", -- v7E-M
+  uxtab16_4 = "fa30f080DNMv",-- v7E-M
+  uxtah_3 = "fa10f080DNM",   -- v7E-M
+  uxtah_4 = "fa10f080DNMv",  -- v7E-M
+  uxtb_2 = "fa5ff080DM",
+  uxtb_3 = "fa5ff080DMv",
+  uxtb16_2 = "fa3ff080DM",   -- v7E-M
+  uxtb16_3 = "fa3ff080DMv",  -- v7E-M
+  uxth_2 = "fa1ff080DM",
+  uxth_3 = "fa1ff080DMv",
 
-  and_4 = "e0000000DNMps",
-  eor_4 = "e0200000DNMps",
-  sub_4 = "e0400000DNMps",
-  rsb_4 = "e0600000DNMps",
-  add_4 = "e0800000DNMps",
-  adc_4 = "e0a00000DNMps",
-  sbc_4 = "e0c00000DNMps",
-  rsc_4 = "e0e00000DNMps",
-  tst_3 = "e1100000NMp",
-  teq_3 = "e1300000NMp",
-  cmp_3 = "e1500000NMp",
-  cmn_3 = "e1700000NMp",
-  orr_4 = "e1800000DNMps",
-  mov_3 = "e1a00000DMps",
-  bic_4 = "e1c00000DNMps",
-  mvn_3 = "e1e00000DMps",
-
-  lsl_3 = "e1a00000DMws",
-  lsr_3 = "e1a00020DMws",
-  asr_3 = "e1a00040DMws",
-  ror_3 = "e1a00060DMws",
-  rrx_2 = "e1a00060DMs",
-
-  -- Multiply and multiply-accumulate.
-  mul_3 = "e0000090NMSs",
-  mla_4 = "e0200090NMSDs",
-  umaal_4 = "e0400090DNMSs",        -- v6
-  mls_4 = "e0600090DNMSs",        -- v6T2
-  umull_4 = "e0800090DNMSs",
-  umlal_4 = "e0a00090DNMSs",
-  smull_4 = "e0c00090DNMSs",
-  smlal_4 = "e0e00090DNMSs",
-
-  -- Halfword multiply and multiply-accumulate.
-  smlabb_4 = "e1000080NMSD",        -- v5TE
-  smlatb_4 = "e10000a0NMSD",        -- v5TE
-  smlabt_4 = "e10000c0NMSD",        -- v5TE
-  smlatt_4 = "e10000e0NMSD",        -- v5TE
-  smlawb_4 = "e1200080NMSD",        -- v5TE
-  smulwb_3 = "e12000a0NMS",        -- v5TE
-  smlawt_4 = "e12000c0NMSD",        -- v5TE
-  smulwt_3 = "e12000e0NMS",        -- v5TE
-  smlalbb_4 = "e1400080NMSD",        -- v5TE
-  smlaltb_4 = "e14000a0NMSD",        -- v5TE
-  smlalbt_4 = "e14000c0NMSD",        -- v5TE
-  smlaltt_4 = "e14000e0NMSD",        -- v5TE
-  smulbb_3 = "e1600080NMS",        -- v5TE
-  smultb_3 = "e16000a0NMS",        -- v5TE
-  smulbt_3 = "e16000c0NMS",        -- v5TE
-  smultt_3 = "e16000e0NMS",        -- v5TE
-
-  -- Miscellaneous data processing instructions.
-  clz_2 = "e16f0f10DM", -- v5T
-  rev_2 = "e6bf0f30DM", -- v6
-  rev16_2 = "e6bf0fb0DM", -- v6
-  revsh_2 = "e6ff0fb0DM", -- v6
-  sel_3 = "e6800fb0DNM", -- v6
-  usad8_3 = "e780f010NMS", -- v6
-  usada8_4 = "e7800010NMSD", -- v6
-  rbit_2 = "e6ff0f30DM", -- v6T2
-  movw_2 = "e3000000DW", -- v6T2
-  movt_2 = "e3400000DW", -- v6T2
-  -- Note: the X encodes width-1, not width.
-  sbfx_4 = "e7a00050DMvX", -- v6T2
-  ubfx_4 = "e7e00050DMvX", -- v6T2
-  -- Note: the X encodes the msb field, not the width.
-  bfc_3 = "e7c0001fDvX", -- v6T2
-  bfi_4 = "e7c00010DMvX", -- v6T2
-
-  -- Packing and unpacking instructions.
-  pkhbt_3 = "e6800010DNM", pkhbt_4 = "e6800010DNMv", -- v6
-  pkhtb_3 = "e6800050DNM", pkhtb_4 = "e6800050DNMv", -- v6
-  sxtab_3 = "e6a00070DNM", sxtab_4 = "e6a00070DNMv", -- v6
-  sxtab16_3 = "e6800070DNM", sxtab16_4 = "e6800070DNMv", -- v6
-  sxtah_3 = "e6b00070DNM", sxtah_4 = "e6b00070DNMv", -- v6
-  sxtb_2 = "e6af0070DM", sxtb_3 = "e6af0070DMv", -- v6
-  sxtb16_2 = "e68f0070DM", sxtb16_3 = "e68f0070DMv", -- v6
-  sxth_2 = "e6bf0070DM", sxth_3 = "e6bf0070DMv", -- v6
-  uxtab_3 = "e6e00070DNM", uxtab_4 = "e6e00070DNMv", -- v6
-  uxtab16_3 = "e6c00070DNM", uxtab16_4 = "e6c00070DNMv", -- v6
-  uxtah_3 = "e6f00070DNM", uxtah_4 = "e6f00070DNMv", -- v6
-  uxtb_2 = "e6ef0070DM", uxtb_3 = "e6ef0070DMv", -- v6
-  uxtb16_2 = "e6cf0070DM", uxtb16_3 = "e6cf0070DMv", -- v6
-  uxth_2 = "e6ff0070DM", uxth_3 = "e6ff0070DMv", -- v6
-
-  -- Saturating instructions.
-  qadd_3 = "e1000050DMN",        -- v5TE
-  qsub_3 = "e1200050DMN",        -- v5TE
-  qdadd_3 = "e1400050DMN",        -- v5TE
-  qdsub_3 = "e1600050DMN",        -- v5TE
-  -- Note: the X for ssat* encodes sat_imm-1, not sat_imm.
-  ssat_3 = "e6a00010DXM", ssat_4 = "e6a00010DXMp", -- v6
-  usat_3 = "e6e00010DXM", usat_4 = "e6e00010DXMp", -- v6
-  ssat16_3 = "e6a00f30DXM", -- v6
-  usat16_3 = "e6e00f30DXM", -- v6
-
-  -- Parallel addition and subtraction.
-  sadd16_3 = "e6100f10DNM", -- v6
-  sasx_3 = "e6100f30DNM", -- v6
-  ssax_3 = "e6100f50DNM", -- v6
-  ssub16_3 = "e6100f70DNM", -- v6
-  sadd8_3 = "e6100f90DNM", -- v6
-  ssub8_3 = "e6100ff0DNM", -- v6
-  qadd16_3 = "e6200f10DNM", -- v6
-  qasx_3 = "e6200f30DNM", -- v6
-  qsax_3 = "e6200f50DNM", -- v6
-  qsub16_3 = "e6200f70DNM", -- v6
-  qadd8_3 = "e6200f90DNM", -- v6
-  qsub8_3 = "e6200ff0DNM", -- v6
-  shadd16_3 = "e6300f10DNM", -- v6
-  shasx_3 = "e6300f30DNM", -- v6
-  shsax_3 = "e6300f50DNM", -- v6
-  shsub16_3 = "e6300f70DNM", -- v6
-  shadd8_3 = "e6300f90DNM", -- v6
-  shsub8_3 = "e6300ff0DNM", -- v6
-  uadd16_3 = "e6500f10DNM", -- v6
-  uasx_3 = "e6500f30DNM", -- v6
-  usax_3 = "e6500f50DNM", -- v6
-  usub16_3 = "e6500f70DNM", -- v6
-  uadd8_3 = "e6500f90DNM", -- v6
-  usub8_3 = "e6500ff0DNM", -- v6
-  uqadd16_3 = "e6600f10DNM", -- v6
-  uqasx_3 = "e6600f30DNM", -- v6
-  uqsax_3 = "e6600f50DNM", -- v6
-  uqsub16_3 = "e6600f70DNM", -- v6
-  uqadd8_3 = "e6600f90DNM", -- v6
-  uqsub8_3 = "e6600ff0DNM", -- v6
-  uhadd16_3 = "e6700f10DNM", -- v6
-  uhasx_3 = "e6700f30DNM", -- v6
-  uhsax_3 = "e6700f50DNM", -- v6
-  uhsub16_3 = "e6700f70DNM", -- v6
-  uhadd8_3 = "e6700f90DNM", -- v6
-  uhsub8_3 = "e6700ff0DNM", -- v6
-
-  -- Load/store instructions.
-  str_2 = "e4000000DL", str_3 = "e4000000DL", str_4 = "e4000000DL",
-  strb_2 = "e4400000DL", strb_3 = "e4400000DL", strb_4 = "e4400000DL",
-  ldr_2 = "e4100000DL", ldr_3 = "e4100000DL", ldr_4 = "e4100000DL",
-  ldrb_2 = "e4500000DL", ldrb_3 = "e4500000DL", ldrb_4 = "e4500000DL",
-  strh_2 = "e00000b0DL", strh_3 = "e00000b0DL",
-  ldrh_2 = "e01000b0DL", ldrh_3 = "e01000b0DL",
-  ldrd_2 = "e00000d0DL", ldrd_3 = "e00000d0DL", -- v5TE
-  ldrsb_2 = "e01000d0DL", ldrsb_3 = "e01000d0DL",
-  strd_2 = "e00000f0DL", strd_3 = "e00000f0DL", -- v5TE
-  ldrsh_2 = "e01000f0DL", ldrsh_3 = "e01000f0DL",
-
-  ldm_2 = "e8900000oR", ldmia_2 = "e8900000oR", ldmfd_2 = "e8900000oR",
-  ldmda_2 = "e8100000oR", ldmfa_2 = "e8100000oR",
-  ldmdb_2 = "e9100000oR", ldmea_2 = "e9100000oR",
-  ldmib_2 = "e9900000oR", ldmed_2 = "e9900000oR",
-  stm_2 = "e8800000oR", stmia_2 = "e8800000oR", stmfd_2 = "e8800000oR",
-  stmda_2 = "e8000000oR", stmfa_2 = "e8000000oR",
-  stmdb_2 = "e9000000oR", stmea_2 = "e9000000oR",
-  stmib_2 = "e9800000oR", stmed_2 = "e9800000oR",
-  pop_1 = "e8bd0000R", push_1 = "e92d0000R",
-
-  -- Branch instructions.
-  b_1 = "ea000000B",
-  bl_1 = "eb000000B",
-  blx_1 = "e12fff30C",
-  bx_1 = "e12fff10M",
-
-  -- Miscellaneous instructions.
-  nop_0 = "e1a00000",
-  mrs_1 = "e10f0000D",
-  bkpt_1 = "e1200070K", -- v5T
-  svc_1 = "ef000000T", swi_1 = "ef000000T",
-  ud_0 = "e7f001f0",
 
   -- VFP instructions.
   ["vadd.f32_3"] = "ee300a00dnm",
@@ -601,13 +652,13 @@ local function parse_vrlist(reglist)
   werror("register list expected")
 end
 
-local function parse_imm(imm, bits, shift, scale, signed)
+local function parse_imm(imm, bits, shift, scale, signed, allowlossy)
   imm = match(imm, "^#(.*)$")
   if not imm then werror("expected immediate operand") end
   local n = tonumber(imm)
   if n then
     local m = sar(n, scale)
-    if shl(m, scale) == n then
+    if allowlossy or shl(m, scale) == n then
       if signed then
         local s = sar(m, bits-1)
         if s == 0 then return shl(m, shift)
@@ -682,7 +733,7 @@ local function parse_shift(shift)
     if not s then werror("expected shift operand") end
     if sub(s2, 1, 1) == "#" then
       -- shift in bit 4, then the bottom 2 bits of imm starting bit 6, then the other 3 bits starting bit 12
-      return shl(s, 4) + parse_imm(s2, 2, 6, 0, false) + parse_imm(s2, 3, 12, 2, false)
+      return shl(s, 4) + parse_imm(s2, 2, 6, 0, false, true) + parse_imm(s2, 3, 12, 2, false, true)
     else
       werror("expected immediate shift operand")
     end
