@@ -20,3 +20,10 @@ function(add_dasm_compile_command infile outfile)
         USES_TERMINAL
         COMMENT "Preprocessing DynASM source file ${infile} ...")
 endfunction()
+
+
+if (BUILD_TESTING)
+    add_dasm_compile_command("${CMAKE_CURRENT_SOURCE_DIR}/test/test.dasc" "${CMAKE_CURRENT_BINARY_DIR}/test.c")
+    add_executable(test "${CMAKE_CURRENT_BINARY_DIR}/test.c")
+    target_link_libraries(test dynasm)
+endif ()

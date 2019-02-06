@@ -1,0 +1,55 @@
+#include <stdio.h>
+#include <string.h>
+#include "dasm_proto.h"
+
+| .arch armv7m
+| .section rodata, code
+| .globals lbl_
+| .actionlist test_actions
+
+#include "dasm_armv7m.h"
+
+
+int main(int argc, char** argv)
+{
+	
+	unsigned npc = 8;
+    unsigned nextpc = 0;
+
+	dasm_State* state;
+    dasm_init(&state, DASM_MAXSECTION);
+    void* labels[lbl__MAX];
+    dasm_setupglobal(&state, labels, lbl__MAX);
+    dasm_setup(&state, test_actions);
+    dasm_growpc(&state, npc);
+
+    dasm_State** Dst = &state;
+	
+	| .code
+	| ->test_main:
+    | adc r0, r0, r0, lsl #1
+	
+	size_t sz;
+    dasm_link(Dst, &sz);
+	void* buf = malloc(sz);
+    dasm_encode(Dst, buf);
+	
+	size_t len = state->codesize;
+    dasm_free(&state);
+    const unsigned char* fn = (const unsigned char*)labels[lbl_test_main];
+	
+	printf("code size = %zu\n", len);
+	for (size_t i = 0; i < len; i += 16) {
+		printf("%08X: ", (unsigned int)i);
+		size_t left = (i + 16 < len) ? 16 : len - i;
+		for (size_t j = 0; j < left; ++j)
+			printf(" %02X", fn[i+j]);
+		printf("\n");
+	}
+	
+	free(buf);
+
+    getchar();
+	
+	return 0;
+}
