@@ -454,7 +454,7 @@ int dasm_encode(Dst_DECL, void *buffer)
           break;
         case DASM_LABEL_PC: break;
         case DASM_IMM:
-          // *scale* the runtime-found value n down, restrict it to its *bits* count, then *shift* it up
+          /* *scale* the runtime-found value n down, restrict it to its *bits* count, then *shift* it up */
           cp[-1] |= ((n>>((ins>>10)&31)) & ((1<<((ins>>5)&31))-1)) << (ins&31);
           break;
         case DASM_IMM12:

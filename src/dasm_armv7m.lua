@@ -652,13 +652,14 @@ local function parse_vrlist(reglist)
   werror("register list expected")
 end
 
-local function parse_imm(imm, bits, shift, scale, signed, allowlossy)
+local function parse_imm(imm, bits, shift, scale, signed, allowlossy, allowoor)
   imm = match(imm, "^#(.*)$")
   if not imm then werror("expected immediate operand") end
   local n = tonumber(imm)
   if n then
     local m = sar(n, scale)
     if allowlossy or shl(m, scale) == n then
+      if allowoor then m = band(m, shl(1, bits)-1) end
       if signed then
         local s = sar(m, bits-1)
         if s == 0 then return shl(m, shift)
@@ -726,14 +727,14 @@ end
 
 local function parse_shift(shift)
   if shift == "rrx" then
-    return 3 * 32
+    return shl(3, 4)
   else
     local s, s2 = match(shift, "^(%S+)%s*(.*)$")
     s = map_shift[s]
     if not s then werror("expected shift operand") end
     if sub(s2, 1, 1) == "#" then
       -- shift in bit 4, then the bottom 2 bits of imm starting bit 6, then the other 3 bits starting bit 12
-      return shl(s, 4) + parse_imm(s2, 2, 6, 0, false, true) + parse_imm(s2, 3, 12, 2, false, true)
+      return shl(s, 4) + parse_imm(s2, 2, 6, 0, false, false, true) + parse_imm(s2, 3, 12, 2, false, true)
     else
       werror("expected immediate shift operand")
     end
