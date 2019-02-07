@@ -16,6 +16,20 @@
 #define DASM_EXTERN(a,b,c,d)        0
 #endif
 
+/* Endianness checks */
+enum
+{
+    DASM_TARGET_BIG_ENDIAN,
+    DASM_TARGET_LITTLE_ENDIAN
+};
+
+static int dasm_get_endianness()
+{
+    short int number = 0x1;
+    char *numPtr = (char*)&number;
+    return (numPtr[0] == 1) ? DASM_TARGET_LITTLE_ENDIAN : DASM_TARGET_BIG_ENDIAN;
+}
+
 /* Action definitions. */
 enum {
   DASM_STOP, DASM_SECTION, DASM_ESC, DASM_REL_EXT,
@@ -76,6 +90,7 @@ struct dasm_State {
   size_t codesize;          /* Total size of all code sections. */
   int maxsection;           /* 0 <= sectionidx < maxsection. */
   int status;               /* Status code. */
+  int endianness;           /* Target endianness. */
   dasm_Section sections[1]; /* All sections. Alloc-extended. */
 };
 
@@ -99,6 +114,7 @@ void dasm_init(Dst_DECL, int maxsection)
   D->pcsize = 0;
   D->globals = NULL;
   D->maxsection = maxsection;
+  D->endianness = dasm_get_endianness();
   for (i = 0; i < maxsection; i++) {
     D->sections[i].buf = NULL;  /* Need this for pass3. */
     D->sections[i].rbuf = D->sections[i].buf - DASM_SEC2POS(i);
@@ -371,10 +387,14 @@ int dasm_link(Dst_DECL, size_t *szp)
 #define CK(x, st)        ((void)0)
 #endif
 
-static unsigned int armv7m_encode(const unsigned int v)
+
+static inline unsigned int dasm_armv7m_encode(dasm_State* d, const unsigned int v)
 {
-    // TODO: support BE?
-    return (v >> 16) + ((v & ((1U << 16) - 1U)) << 16);
+    /* For bytes 3210, on ARMv7-M LE this should become 2301, BE should be 3210 */
+    if (d->endianness == DASM_TARGET_LITTLE_ENDIAN)
+        return (v >> 16) + ((v & ((1U << 16) - 1U)) << 16);
+    else
+        return v;
 }
 
 /* Pass 3: Encode sections. */
@@ -399,12 +419,12 @@ int dasm_encode(Dst_DECL, void *buffer)
         int n = (action >= DASM_ALIGN && action < DASM__MAX) ? *b++ : 0;
         switch (action) {
         case DASM_STOP: case DASM_SECTION: goto stop;
-        case DASM_ESC: *cp++ = armv7m_encode(*p++); break;
+        case DASM_ESC: *cp++ = dasm_armv7m_encode(D, *p++); break;
         case DASM_REL_EXT:
           n = DASM_EXTERN(Dst, (unsigned char *)cp, (ins&2047), !(ins&2048));
           goto patchrel;
         case DASM_ALIGN:
-          ins &= 255; while ((((char *)cp - base) & ins)) *cp++ = armv7m_encode(0xf3af8000); // NOP
+          ins &= 255; while ((((char *)cp - base) & ins)) *cp++ = dasm_armv7m_encode(D, 0xf3af8000); // NOP
           break;
         case DASM_REL_LG:
           CK(n >= 0, UNDEF_LG);
@@ -453,7 +473,7 @@ int dasm_encode(Dst_DECL, void *buffer)
           // TOCHECK
           cp[-1] |= n >= 0 ? (0x00800000 | n) : (-n);
           break;
-        default: *cp++ = armv7m_encode(ins); break;
+        default: *cp++ = dasm_armv7m_encode(D, ins); break;
         }
       }
       stop: (void)0;

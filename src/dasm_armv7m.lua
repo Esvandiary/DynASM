@@ -906,14 +906,6 @@ local function parse_template(params, template, nparams, pos)
       local r,h = parse_vr(q, vr); op = op+shl(r,16)+shl(h,7); n = n + 1
     elseif p == "m" then
       local r,h = parse_vr(q, vr); op = op+r+shl(h,5); n = n + 1
-    elseif p == "P" then
-      local imm = match(q, "^#(.*)$")
-      if imm then
-        op = op + parse_imm12(imm) + 0x02000000
-      else
-        op = op + parse_gpr(q)
-      end
-      n = n + 1
     elseif p == "p" then
       op = op + parse_shift(q, true); n = n + 1
     elseif p == "L" then
