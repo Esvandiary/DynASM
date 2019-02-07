@@ -26,7 +26,7 @@ int main(int argc, char** argv)
 	
 	| .code
 	| ->test_main:
-    | add r0, r0, #196608
+    | movw r0, #65530
 	
 	size_t sz;
     dasm_link(Dst, &sz);

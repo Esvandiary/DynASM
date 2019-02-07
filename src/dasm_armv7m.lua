@@ -270,8 +270,8 @@ local map_op = {
   blal_1 = "f000d000B",
   blx_1 = "4780bf00j",   -- with bonus nop
   bx_1 = "4700bf00j",    -- with bonus nop
-  bfc_3 = "f36f0000Dxz",
-  bfi_4 = "f3600000DNxz",
+  bfc_3 = "f36f0000Dz",
+  bfi_4 = "f3600000DNz",
   bic_3 = "ea200000DNMs|f0200000DNIs",
   bic_4 = "ea200000DNMps",
   bkpt_1 = "be00bf00K",  -- with bonus nop
@@ -312,8 +312,8 @@ local map_op = {
   mla_4 = "fb000000DNMT",
   mls_4 = "fb000010DNMT",
   mov_2 = "ea4f0000DMs|f04f0000DIs",
-  movw_2 = "f2400000Dy",
-  movt_2 = "f2c00000Dy",
+  movw_2 = "f2400000DW",
+  movt_2 = "f2c00000DW",
   mul_3 = "fb00f000DNM",
   mvn_2 = "ea6f0000DMps|f06f0000DIs",
   neg_2 = "f1d00000DN",   -- alias for RSBS Rd, Rn, #0
@@ -352,7 +352,7 @@ local map_op = {
   sasx_3 = "faa0f000DNM",   -- v7E-M
   sbc_3 = "eb600000DNMs|f1600000DNIs",
   sbc_4 = "eb600000DNMps",
-  sbfx_4 = "f3400000DNxz",
+  sbfx_4 = "f3400000DNz",
   sdiv_3 = "fb90f0f0DNM",
   sel_3 = "faa0f080DNM",    -- v7E-M
   shadd16_3 = "fa90f020DNM",-- v7E-M
@@ -442,7 +442,7 @@ local map_op = {
   uadd16_3 = "fa90f040DNM", -- v7E-M
   uadd8_3 = "fa80f040DNM",  -- v7E-M
   uasx_3 = "faa0f040DNM",   -- v7E-M
-  ubfx_4 = "f3c00000DNxz",
+  ubfx_4 = "f3c00000DNz",
   udiv_3 = "fbb0f0f0DNM",
   uhadd16_3 = "fa90f060DNM",-- v7E-M
   uhadd8_3 = "fa80f060DNM", -- v7E-M
@@ -572,10 +572,14 @@ local map_op = {
 do
   local t = {}
   for k,v in pairs(map_op) do
-    if sub(v, -1) == "s" then
-      local v2 = sub(v, 1, 2)..char(byte(v, 3)+1)..sub(v, 4, -2)
-      -- TODO: fix this logic for .w names
-      t[sub(k, 1, -3).."s"..sub(k, -2)] = v2
+    local vout = ""
+    for vx in gmatch(v, "([^|]+)") do
+      if sub(vx, -1) == "s" then
+        vout = vout.."|"..sub(vx, 1, 2)..char(byte(vx, 3)+1)..sub(vx, 4, -2)
+      end
+    end
+    if match(vout, "(.)") then
+      t[sub(k, 1, -3).."s"..sub(k, -2)] = sub(vout, 1)
     end
   end
   for k,v in pairs(t) do
@@ -716,8 +720,11 @@ local function parse_imm16(imm)
   if not imm then werror("expected immediate operand") end
   local n = tonumber(imm)
   if n then
-    if shr(n, 16) == 0 then return band(n, 0x0fff) + shl(band(n, 0xf000), 4) end
-    werror("out of range immediate `"..imm.."'")
+    result =          parse_imm_n(n, 8, 0, 0, false, false, true)
+    result = result + parse_imm_n(n, 3, 12, 8, false, true, true)
+    result = result + parse_imm_n(n, 1, 26, 11, false, true, true)
+    result = result + parse_imm_n(n, 4, 16, 12, false, true, false)
+    return result
   else
     waction("IMM16", 32*16, imm)
     return 0
@@ -901,6 +908,25 @@ local function parse_vload(q)
   werror("expected address operand")
 end
 
+local function parse_lsbwidth(params, nparams, n, op)
+  -- The required value of msbit is <lsb>+<width>-1
+  if n + 1 <= nparams then
+    lsb = tonumber(params[n+0])
+    width = tonumber(params[n+1])
+    if lsb and width then
+      msbit = lsb + width - 1
+      op = op + parse_imm_n(lsb, 2, 6, 0, false, false, true)
+      op = op + parse_imm_n(lsb, 3, 12, 2, false, true, false)
+      op = op + parse_imm_n(msbit, 5, 0, 0, false, false, false)
+      return op
+    else
+      -- TODO: write action
+    end
+  else
+    werror("expected two immediate arguments for lsb/width")
+  end
+end
+
 ------------------------------------------------------------------------------
 
 -- Handle opcodes defined with template strings.
@@ -908,6 +934,7 @@ local function parse_template(params, template, nparams, pos)
   local op = tonumber(sub(template, 1, 8), 16)
   local n = 1
   local vr = "s"
+  local lastx = nil
 
   -- Process each character.
   for p in gmatch(sub(template, 9), ".") do
@@ -934,6 +961,13 @@ local function parse_template(params, template, nparams, pos)
       op = parse_load(params, nparams, n, op)
     elseif p == "l" then
       op = op + parse_vload(q)
+    elseif p == "z" then
+      op = op + parse_lsbwidth(params, nparams, n, op)
+      n = n + 2
+    elseif p == "x" then
+      op = op + parse_imm(q, 2, 6, 0, false, false, true)
+      op = op + parse_imm(q, 3, 12, 2, false, true, false)
+      n = n + 1
     elseif p == "B" then
       local mode, n, s = parse_label(q, false)
       waction("REL_"..mode, n, s, 1)
@@ -976,8 +1010,6 @@ local function parse_template(params, template, nparams, pos)
         werror("bad immediate operand")
       end
       op = op + shl(band(imm, 0xfff0), 4) + band(imm, 0x000f)
-    elseif p == "T" then
-      op = op + parse_imm(q, 24, 0, 0, false); n = n + 1
     elseif p == "s" then
       -- Ignored.
     else
