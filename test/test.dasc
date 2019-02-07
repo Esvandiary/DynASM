@@ -12,7 +12,6 @@
 
 int main(int argc, char** argv)
 {
-	
 	unsigned npc = 8;
     unsigned nextpc = 0;
 
@@ -27,7 +26,7 @@ int main(int argc, char** argv)
 	
 	| .code
 	| ->test_main:
-    | adc r0, r0, r0, lsl #1
+    | add r0, r0, #196608
 	
 	size_t sz;
     dasm_link(Dst, &sz);

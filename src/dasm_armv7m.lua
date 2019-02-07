@@ -27,7 +27,7 @@ local sub, format, byte, char = _s.sub, _s.format, _s.byte, _s.char
 local match, gmatch, gsub = _s.match, _s.gmatch, _s.gsub
 local concat, sort, insert = table.concat, table.sort, table.insert
 local bit = bit or require("bit")
-local band, shl, shr, sar = bit.band, bit.lshift, bit.rshift, bit.arshift
+local band, bor, bxor, shl, shr, sar = bit.band, bit.bor, bit.bxor, bit.lshift, bit.rshift, bit.arshift
 local ror, tohex = bit.ror, bit.tohex
 
 -- Inherited tables and callbacks.
@@ -241,15 +241,15 @@ local map_cond = {
 
 -- Template strings for ARM instructions.
 local map_op = {
-  adc_3 = "f1400000DNIs|eb400000DNMs",
+  adc_3 = "eb400000DNMs|f1400000DNIs",
   adc_4 = "eb400000DNMps",
-  add_3 = "f1000000DNIs|eb000000DNMs",
+  add_3 = "eb000000DNMs|f1000000DNIs",
   add_4 = "eb000000DNMps",
   addw_3 = "f2000000DNI",
   adr_2 = "f20f0000DJ", -- bits 21/23 different depending on direction: before = 1, after = 0
-  and_3 = "f0000000DNIs|ea000000DNMs",
+  and_3 = "ea000000DNMs|f0000000DNIs",
   and_4 = "ea000000DNMps",
-  asr_3 = "ea4f0020DMxs|fa40f000DNMs",
+  asr_3 = "fa40f000DNMs|ea4f0020DMxs",
   b_1 = "f0009000W",
   bal_1 = "f0009000W",
   beq_1 = "f0008000V",
@@ -272,17 +272,17 @@ local map_op = {
   bx_1 = "4700bf00w",    -- with bonus nop
   bfc_3 = "f36f0000Dxz",
   bfi_4 = "f3600000DNxz",
-  bic_3 = "f0200000DNIs|ea200000DNMs",
+  bic_3 = "ea200000DNMs|f0200000DNIs",
   bic_4 = "ea200000DNMps",
   bkpt_1 = "be00bf00K",  -- with bonus nop
   cbz_2 = "b100bf00kC",  -- with bonus nop
   cbnz_2 = "b900bf00kC", -- with bonus nop
   clz_2 = "fab0f080DZ",
-  cmn_2 = "f1100f00NI|eb100f00NM", -- condition flags only
+  cmn_2 = "eb100f00NM|f1100f00NI", -- condition flags only
   cmn_3 = "eb100f00NMp",           -- condition flags only
-  cmp_2 = "f1b00f00NI|ebb00f00NM", -- condition flags only
+  cmp_2 = "ebb00f00NM|f1b00f00NI", -- condition flags only
   cmp_3 = "ebb00f00NMp",           -- condition flags only
-  eor_3 = "f0800000DNIs|ea800000DNMs",
+  eor_3 = "ea800000DNMs|f0800000DNIs",
   eor_4 = "ea800000DNMps",
   ldm_2 = "e8900000oR",
   ldmdb_2 = "e9100000oR",
@@ -307,20 +307,21 @@ local map_op = {
   ldrsh_3 = "f9300000TL",
   ldrsht_3 = "f9300e00TL",
   ldrt_3 = "f8500e00TL",
-  lsl_3 = "ea4f0000DMxs|fa0ff000DNMs",
-  lsr_3 = "ea4f0010DMxs|fa2ff000DNMs",
+  lsl_3 = "fa0ff000DNMs|ea4f0000DMxs",
+  lsr_3 = "fa2ff000DNMs|ea4f0010DMxs",
   mla_4 = "fb000000DNMT",
   mls_4 = "fb000010DNMT",
-  mov_2 = "f04f0000DIs|ea4f0000DMs",
+  mov_2 = "ea4f0000DMs|f04f0000DIs",
   movw_2 = "f2400000Dy",
   movt_2 = "f2c00000Dy",
   mul_3 = "fb00f000DNM",
-  mvn_2 = "f06f0000DIs|ea6f0000DMps",
+  mvn_2 = "ea6f0000DMps|f06f0000DIs",
   neg_2 = "f1d00000DN",   -- alias for RSBS Rd, Rn, #0
-  nop_0 = "bf00bf00|f3af8000",
-  orn_3 = "f0600000DNIs|ea600000DNMs",
+  nop_0 = "bf00bf00",
+  ["nop.w_0"] = "f3af8000",
+  orn_3 = "ea600000DNMs|f0600000DNIs",
   orn_4 = "ea600000DNMps",
-  orr_3 = "f0400000DNIs|ea400000DNMs",
+  orr_3 = "ea400000DNMs|f0400000DNIs",
   orr_4 = "ea400000DNMps",
   pkhbt_3 = "eac00000DNM",  -- v7E-M
   pkhbt_4 = "eac00000DNMx", -- v7E-M
@@ -342,14 +343,14 @@ local map_op = {
   rev_2 = "fa90f080DM",
   rev16_2 = "fa90f090DM",
   revsh_2 = "fa90f0b0DM",
-  ror_3 = "ea4f0030DMxs|fa60f000DNMs",
+  ror_3 = "fa60f000DNMs|ea4f0030DMxs",
   rrx_2 = "ea4f0030DMs",
-  rsb_3 = "f1c00000DNIs|ebc00000DNMs",
+  rsb_3 = "ebc00000DNMs|f1c00000DNIs",
   rsb_4 = "ebc00000DNMps",
   sadd16_3 = "fa90f000DNM", -- v7E-M
   sadd8_3 = "fa80f000DNM",  -- v7E-M
   sasx_3 = "faa0f000DNM",   -- v7E-M
-  sbc_3 = "f1600000DNIs|eb600000DNMs",
+  sbc_3 = "eb600000DNMs|f1600000DNIs",
   sbc_4 = "eb600000DNMps",
   sbfx_4 = "f3400000DNxz",
   sdiv_3 = "fb90f0f0DNM",
@@ -417,7 +418,7 @@ local map_op = {
   strht_2 = "f8200e00TL",
   strht_3 = "f8200e00TL",
   strt_3 = "f8400e00TL",
-  sub_3 = "f1a00000DNIs|eba00000DNMs",
+  sub_3 = "eba00000DNMs|f1a00000DNIs",
   sub_4 = "eba00000DNMps",
   subw_3 = "f2a00000DNI",
   sxtab_3 = "fa40f080DNM",    -- v7E-M
@@ -434,9 +435,9 @@ local map_op = {
   sxth_3 = "fa0ff080DMv",
   tbb_2 = "e8d0f000NM",
   tbh_2 = "e8d0f010NM",
-  teq_2 = "f0900f00NI|ea900f00NM",  -- condition flags only
+  teq_2 = "ea900f00NM|f0900f00NI",  -- condition flags only
   teq_3 = "ea900f00NMI",            -- condition flags only
-  tst_2 = "f0100f00NI|ea100f00NM",  -- condition flags only
+  tst_2 = "ea100f00NM|f0100f00NI",  -- condition flags only
   tst_3 = "ea100f00NMI",            -- condition flags only
   uadd16_3 = "fa90f040DNM", -- v7E-M
   uadd8_3 = "fa80f040DNM",  -- v7E-M
@@ -652,9 +653,7 @@ local function parse_vrlist(reglist)
   werror("register list expected")
 end
 
-local function parse_imm(imm, bits, shift, scale, signed, allowlossy, allowoor)
-  imm = match(imm, "^#(.*)$")
-  if not imm then werror("expected immediate operand") end
+local function parse_imm_n(imm, bits, shift, scale, signed, allowlossy, allowoor)
   local n = tonumber(imm)
   if n then
     local m = sar(n, scale)
@@ -675,13 +674,37 @@ local function parse_imm(imm, bits, shift, scale, signed, allowlossy, allowoor)
   end
 end
 
+local function parse_imm(imm, bits, shift, scale, signed, allowlossy, allowoor)
+  imm = match(imm, "^#(.*)$")
+  if not imm then werror("expected immediate operand") end
+  return parse_imm_n(imm, bits, shift, scale, signed, allowlossy, allowoor)
+end
+
 local function parse_imm12(imm)
+  imm = match(imm, "^#(.*)$")
+  if not imm then werror("expected immediate operand") end
   local n = tonumber(imm)
   if n then
-    local m = band(n)
-    for i=0,-15,-1 do
-      if shr(m, 8) == 0 then return m + shl(band(i, 15), 8) end
-      m = ror(m, 2)
+    if n <= 255 then
+      return band(n, 255)
+    elseif band(n, 0xFF00FF00) == 0 and band(bxor(shr(n, 16), n), 0x00FF) == 0 then
+      return bor(band(n, 255), shl(1, 12))
+    elseif band(n, 0x00FF00FF) == 0 and band(bxor(shr(n, 16), n), 0xFF00) == 0 then
+      return bor(band(shr(n, 8), 0xFF), shl(2, 12))
+    elseif band(bxor(band(shr(n, 16), 0xFFFF), n), 0xFFFF) == 0 and band(bxor(band(shr(n, 8), 0xFF), n), 0xFF) == 0 then
+      return bor(band(shr(n, 8), 0xFF), shl(3, 12))
+    else
+      local intbytes = 4
+      for i=0,32,1 do
+        if n >= 0x80 and n <= 0xFF then
+          local result = band(n, 0x7F)
+          result = bor(result, shl(band(i, 0x01), 7))
+          result = bor(result, shl(band(i, 0x0E), 12-1))
+          result = bor(result, shl(band(i, 0x10), 26-4))
+          return result
+        end
+        n = bor(shl(n, 1), shr(n, 31)) -- assumes 32-bit int
+      end
     end
     werror("out of range immediate `"..imm.."'")
   else
@@ -930,6 +953,8 @@ local function parse_template(params, template, nparams, pos)
       op = op + parse_vrlist(q); n = n + 1
     elseif p == "W" then
       op = op + parse_imm16(q); n = n + 1
+    elseif p == "I" then
+      op = op + parse_imm12(q); n = n + 1
     elseif p == "v" then
       op = op + parse_imm(q, 5, 7, 0, false); n = n + 1
     elseif p == "w" then

@@ -184,34 +184,29 @@ void dasm_setup(Dst_DECL, const void *actionlist)
 
 static int dasm_imm12(unsigned int n)
 {
-  int i;
   unsigned int m = n;
-  
-  // v7M implementation taken from https://github.com/jturnsek/LuaJIT/
+
+  // v7M i:imm3 logic taken from https://github.com/jturnsek/LuaJIT/
   if (m <= 255) {
     /* i:imm3 = 0000 */
-    return ((((m)&0xff)<<16)|(((m)&0x700)<<20)|(((m)&0x800)>>1));
+    return (m & 0xFF);
   }
-  else if (!(m & 0xff00ff00) && !(((m >>16 & 0xff) ^ m) & 0xff)) {
+  else if ((m & 0xff00ff00) == 0 && (((m >> 16) ^ m) & 0xff) == 0) {
     /* i:imm3 = 0001 */
-    return ((((0x100|(m&0xff))&0xff)<<16)|(((0x100|(m&0xff))&0x700)<<20)|(((0x100|(m&0xff))&0x800)>>1));
+    return (m & 0xFF) | (0x01 << 12);
   }
-  else if (!(m & 0x00ff00ff) && !(((m >>16 & 0xff00) ^ m) & 0xff00)) {
+  else if ((m & 0x00ff00ff) == 0 && (((m >> 16) ^ m) & 0xff00) == 0) {
     /* i:imm3 = 0010 */
-    return ((((0x200|(m>>8&0xff))&0xff)<<16)|(((0x200|(m>>8&0xff))&0x700)<<20)|(((0x200|(m>>8&0xff))&0x800)>>1));
+    return ((m >> 8) & 0xFF) | (0x02) << 12;
   }
-  else if (!(((m >>16 & 0xffff) ^ m) & 0xffff) && !(((m >>8 & 0xff) ^ m) & 0xff)) {
+  else if (((((m >> 16) & 0xffff) ^ m) & 0xffff) == 0 && ((((m >> 8) & 0xff) ^ m) & 0xff) == 0) {
     /* i:imm3 = 0011 */
-    return ((((0x300|(m&0xff))&0xff)<<16)|(((0x300|(m&0xff))&0x700)<<20)|(((0x300|(m&0xff))&0x800)>>1));
+    return ((m >> 8) & 0xFF) | (0x03) << 12;
   }
   else {
-    for (i = 0; i < 4096; i += 128, m = ((m<<1)|(m>>(-(unsigned int)(1)&(8*sizeof(m)-1))))) {
-      if (m <= 255) {
-        if ((m & 0x80) && (i >= 128*8))
-          return ((((i|(m&0x7f))&0xff)<<16)|(((i|(m&0x7f))&0x700)<<20)|(((i|(m&0x7f))&0x800)>>1));
-        else
-          break;
-      }
+    for (unsigned int i = 0; i < 32; ++i, m = ((m << 1) | (m >> 31))) {
+      if (m <= 255 && (m & 0x80) != 0)
+        return (m & 0x7F) | ((i & 0x1) << 7) | ((i & 0xE) << (12 - 1)) | ((i & 0x10) << (26 - 4));
     }
   }
   return -1;
