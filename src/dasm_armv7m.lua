@@ -250,26 +250,26 @@ local map_op = {
   and_3 = "ea000000DNMs|f0000000DNIs",
   and_4 = "ea000000DNMps",
   asr_3 = "fa40f000DNMs|ea4f0020DMxs",
-  b_1 = "f0009000W",
-  bal_1 = "f0009000W",
-  beq_1 = "f0008000V",
-  bne_1 = "f0408000V",
-  bcs_1 = "f0808000V",
-  bcc_1 = "f0c08000V",
-  bmi_1 = "f1008000V",
-  bpl_1 = "f1408000V",
-  bvs_1 = "f1808000V",
-  bvc_1 = "f1c08000V",
-  bhi_1 = "f2008000V",
-  bls_1 = "f2408000V",
-  bge_1 = "f2808000V",
-  blt_1 = "f2c08000V",
-  bgt_1 = "f3008000V",
-  ble_1 = "f3408000V",
-  bl_1 = "f000d000W",
-  blal_1 = "f000d000W",
-  blx_1 = "4780bf00w",   -- with bonus nop
-  bx_1 = "4700bf00w",    -- with bonus nop
+  b_1 = "f0009000B",
+  bal_1 = "f0009000B",
+  beq_1 = "f0008000b",
+  bne_1 = "f0408000b",
+  bcs_1 = "f0808000b",
+  bcc_1 = "f0c08000b",
+  bmi_1 = "f1008000b",
+  bpl_1 = "f1408000b",
+  bvs_1 = "f1808000b",
+  bvc_1 = "f1c08000b",
+  bhi_1 = "f2008000b",
+  bls_1 = "f2408000b",
+  bge_1 = "f2808000b",
+  blt_1 = "f2c08000b",
+  bgt_1 = "f3008000b",
+  ble_1 = "f3408000b",
+  bl_1 = "f000d000B",
+  blal_1 = "f000d000B",
+  blx_1 = "4780bf00j",   -- with bonus nop
+  bx_1 = "4700bf00j",    -- with bonus nop
   bfc_3 = "f36f0000Dxz",
   bfi_4 = "f3600000DNxz",
   bic_3 = "ea200000DNMs|f0200000DNIs",
@@ -560,8 +560,6 @@ local map_op = {
   ["vfnma.f64_3"] = "ee900b40Gdnm",
   ["vfnms.f32_3"] = "ee900a00dnm",
   ["vfnms.f64_3"] = "ee900b00Gdnm",
-
-  -- NYI: Advanced SIMD instructions.
 
   -- NYI: I have no need for these instructions right now:
   -- swp, swpb, strex, ldrex, strexd, ldrexd, strexb, ldrexb, strexh, ldrexh
