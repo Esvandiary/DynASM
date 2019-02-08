@@ -100,6 +100,10 @@ local function waction(action, val, a, num)
   if a or num then secpos = secpos + (num or 1) end
 end
 
+local function wimmaction(arg, scale, bits, shift, signed)
+  return waction("IMM", (signed and 32768 or 0)+scale*1024+bits*32+shift, arg)
+end
+
 -- Flush action list (intervening C code or buffer pos overflow).
 local function wflush(term)
   if #actlist == actargs[1] then return end -- Nothing to flush.
@@ -589,8 +593,8 @@ end
 
 ------------------------------------------------------------------------------
 
-local function parse_gpr(expr)
-  local tname, ovreg = match(expr, "^([%w_]+):(r1?[0-9])$")
+local function parse_gpr(expr, shift, nodefer)
+  local tname, ovreg = match(expr, "^([%w_]+):(r%(?1?[0-9]%)?)$")
   local tp = map_type[tname or expr]
   if tp then
     local reg = ovreg or tp.reg
@@ -602,36 +606,44 @@ local function parse_gpr(expr)
   local r = match(expr, "^r(1?[0-9])$")
   if r then
     r = tonumber(r)
-    if r <= 15 then return r, tp end
+    if r <= 15 then return shl(r, shift), tp end
   end
-  werror("bad register name `"..expr.."'")
-end
-
-local function parse_gpr_pm(expr)
-  local pm, expr2 = match(expr, "^([+-]?)(.*)$")
-  return parse_gpr(expr2), (pm == "-")
-end
-
-local function parse_vr(expr, tp)
-  local t, r = match(expr, "^([sd])([0-9]+)$")
-  if t == tp then
-    r = tonumber(r)
-    if r <= 31 then
-      if t == "s" then return shr(r, 1), band(r, 1) end
-      return band(r, 15), shr(r, 4)
+  if not nodefer then
+    local rv = match(expr, "^r%(([^)]+)%)$")
+    if rv then
+      -- store as action to read later
+      wimmaction(rv, 0, 4, shift, false)
+      return 0
     end
   end
   werror("bad register name `"..expr.."'")
 end
 
--- TODO: handle stupid difference between 1 reg set and >1 in POP/PUSH
--- normally reglist is [15:0], if only 1 set then it lives in [15:12] (Rt)
+local function parse_vr(expr, tp, rp, hp)
+  local t, r = match(expr, "^([sd])([0-9]+)$")
+  if t == tp then
+    r = tonumber(r)
+    if r <= 31 then
+      if t == "s" then return shl(shr(r, 1), rp) + shl(band(r, 1), hp) end
+      return shl(band(r, 15), rp) + shl(shr(r, 4), hp)
+    end
+  end
+  local tv, rv = match(expr, "^([sd])%(([^)]+)%)$")
+  if tv == tp then
+    -- store as action to read later
+    wimmaction(rv, 1, 4, rp, false)
+    wimmaction(rv, 0, 1, hp, false)
+    return 0
+  end
+  werror("bad register name `"..expr.."'")
+end
+
 local function parse_reglist(reglist)
   reglist = match(reglist, "^{%s*([^}]*)}$")
   if not reglist then werror("register list expected") end
   local rr = 0
   for p in gmatch(reglist..",", "%s*([^,]*),") do
-    local rbit = shl(1, parse_gpr(gsub(p, "%s+$", "")))
+    local rbit = shl(1, parse_gpr(gsub(p, "%s+$", ""), 0, true))
     if band(rr, rbit) ~= 0 then
       werror("duplicate register `"..p.."'")
     end
@@ -671,7 +683,7 @@ local function parse_imm_n(imm, bits, shift, scale, signed, allowlossy, allowoor
     end
     werror("out of range immediate `"..imm.."'")
   else
-    waction("IMM", (signed and 32768 or 0)+scale*1024+bits*32+shift, imm)
+    wimmaction(imm, scale, bits, shift, signed)
     return 0
   end
 end
@@ -800,7 +812,6 @@ local function parse_label(label, def)
   werror("bad label `"..label.."'")
 end
 
--- TOCHECK
 local function parse_load(params, nparams, n, op)
   local ophi = shr(op, 20)
   local pn = params[n]
@@ -818,11 +829,11 @@ local function parse_load(params, nparams, n, op)
       -- GPR?
       local reg, tailr = match(pn, "^([%w_:]+)%s*(.*)$")
       if reg and tailr ~= "" then
-        local d, tp = parse_gpr(reg)
+        local d, tp = parse_gpr(reg, 16)
         if tp then
           waction("IMML", 32768 + 32*12, format(tp.ctypefmt, tailr))
           -- IMM1/2: op + (d -> Rn)
-          return op + shl(d, 16)
+          return op + d
         end
       end
     end
@@ -833,7 +844,7 @@ local function parse_load(params, nparams, n, op)
     -- IMM1/2
     if wb == "!" then werror("bad use of '!'") end
     local p3 = params[n+2]
-    op = op + shl(parse_gpr(p1), 16)  -- p1 -> Rn
+    op = op + parse_gpr(p1, 16)  -- p1 -> Rn
     local imm = match(p2, "^#(.*)$")
     if imm then
       local m = parse_imm_load(imm)
@@ -843,7 +854,7 @@ local function parse_load(params, nparams, n, op)
     werror("expected immediate as final argument to LDR/STR")
   else
     local p1a, p2 = match(p1, "^([^,%s]*)%s*(.*)$")
-    op = op + shl(parse_gpr(p1a), 16)
+    op = op + parse_gpr(p1a, 16)
     if p2 ~= "" then
       local imm = match(p2, "^,%s*#(.*)$")
       if imm then
@@ -853,8 +864,7 @@ local function parse_load(params, nparams, n, op)
       else
         -- REG
         local p2a, p3 = match(p2, "^,%s*([^,%s]*)%s*,?%s*(.*)$")
-        local m = parse_gpr(p2a)
-        op = op + m
+        op = op + parse_gpr(p2a, 0)
         if p3 ~= "" then
           local p3s = parse_shift(p3)
           if band(p3s, 0x3F) ~= 0 or band(p3s, 0x7000) ~= 0 then
@@ -874,7 +884,7 @@ end
 local function parse_vload(q)
   local reg, imm = match(q, "^%[%s*([^,%s]*)%s*(.*)%]$")
   if reg then
-    local d = shl(parse_gpr(reg), 16)
+    local d = parse_gpr(reg, 16)
     if imm == "" then return d end
     imm = match(imm, "^,%s*#(.*)$")
     if imm then
@@ -897,10 +907,10 @@ local function parse_vload(q)
     end
     local reg, tailr = match(q, "^([%w_:]+)%s*(.*)$")
     if reg and tailr ~= "" then
-      local d, tp = parse_gpr(reg)
+      local d, tp = parse_gpr(reg, 16)
       if tp then
         waction("IMMV8", 32768 + 32*8, format(tp.ctypefmt, tailr))
-        return shl(d, 16)
+        return d
       end
     end
   end
@@ -939,21 +949,21 @@ local function parse_template(params, template, nparams, pos)
   for p in gmatch(sub(template, 9), ".") do
     local q = params[n]
     if p == "D" then
-      op = op + shl(parse_gpr(q), 8); n = n + 1
+      op = op + parse_gpr(q, 8);  n = n + 1
     elseif p == "T" then
-      op = op + shl(parse_gpr(q), 12); n = n + 1
+      op = op + parse_gpr(q, 12); n = n + 1
     elseif p == "N" then
-      op = op + shl(parse_gpr(q), 16); n = n + 1
+      op = op + parse_gpr(q, 16); n = n + 1
     elseif p == "M" then
-      op = op + parse_gpr(q); n = n + 1
+      op = op + parse_gpr(q, 0);  n = n + 1
     elseif p == "Z" then  -- M, and M in the N slot
-      local mgpr = parse_gpr(q); op = op + mgpr + shl(mgpr, 16); n = n + 1
+      op = op + parse_gpr(q, 0) + parse_gpr(q, 16); n = n + 1
     elseif p == "d" then
-      local r,h = parse_vr(q, vr); op = op+shl(r,12)+shl(h,22); n = n + 1
+      op = op + parse_vr(q, vr, 12, 22); n = n + 1
     elseif p == "n" then
-      local r,h = parse_vr(q, vr); op = op+shl(r,16)+shl(h,7); n = n + 1
+      op = op + parse_vr(q, vr, 16, 7); n = n + 1
     elseif p == "m" then
-      local r,h = parse_vr(q, vr); op = op+r+shl(h,5); n = n + 1
+      op = op + parse_vr(q, vr, 0, 5); n = n + 1
     elseif p == "p" then
       op = op + parse_shift(q, true); n = n + 1
     elseif p == "L" then
@@ -976,7 +986,7 @@ local function parse_template(params, template, nparams, pos)
       vr = "d"
     elseif p == "o" then  -- N with possible writeback
       local r, wb = match(q, "^([^!]*)(!?)$")
-      op = op + shl(parse_gpr(r), 16) + (wb == "!" and 0x00200000 or 0)
+      op = op + parse_gpr(r, 16) + (wb == "!" and 0x00200000 or 0)
       n = n + 1
     elseif p == "R" then
       op = op + parse_reglist(q); n = n + 1
@@ -993,7 +1003,7 @@ local function parse_template(params, template, nparams, pos)
       if imm then
         op = op + parse_imm(q, 5, 7, 0, false); n = n + 1
       else
-        op = op + shl(parse_gpr(q), 8) + 16
+        op = op + parse_gpr(q, 8) + 16
       end
     elseif p == "X" then
       op = op + parse_imm(q, 5, 16, 0, false); n = n + 1

@@ -23,6 +23,8 @@ int main(int argc, char** argv)
     dasm_growpc(&state, npc);
 
     dasm_State** Dst = &state;
+
+    int stack = 8;
 	
 	| .code
 	| ->test_main:
@@ -32,6 +34,10 @@ int main(int argc, char** argv)
     | movw r0, #65530
     | movw r0, #65530
     | ldr r0, ->wat
+    | add r2, r4, #(stack)*4
+    | vpop {s16-s31}
+    | vldm r(stack), {s0-s3}
+    | vmul.f32 s(stack), s(stack), s(stack)
 	
 	size_t sz;
     dasm_link(Dst, &sz);
