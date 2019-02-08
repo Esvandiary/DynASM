@@ -266,8 +266,8 @@ local map_op = {
   adc_4 = "eb400000DNMps",
   add_3 = "eb000000DNMs|f1000000DNIs",
   add_4 = "eb000000DNMps",
-  addw_3 = "f2000000DNI",
-  adr_2 = "f20f0000DJ", -- bits 21/23 different depending on direction: before = 1, after = 0
+  addw_3 = "f2000000DNI", -- TODO: not actually I, normal imm12...
+  adr_2 = "f20f0000DJ", -- TODO: normal imm12, bits 21/23 different depending on direction: before = 1, after = 0
   and_3 = "ea000000DNMs|f0000000DNIs",
   and_4 = "ea000000DNMps",
   asr_3 = "fa40f000DNMs|ea4f0020DMxs",
@@ -441,7 +441,7 @@ local map_op = {
   strt_3 = "f8400e00TL",
   sub_3 = "eba00000DNMs|f1a00000DNIs",
   sub_4 = "eba00000DNMps",
-  subw_3 = "f2a00000DNI",
+  subw_3 = "f2a00000DNI", -- TODO: not actually I, normal imm12...
   sxtab_3 = "fa40f080DNM",    -- v7E-M
   sxtab_4 = "fa40f080DNMv",   -- v7E-M
   sxtab16_3 = "fa20f080DNM",  -- v7E-M

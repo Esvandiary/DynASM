@@ -26,6 +26,8 @@ int main(int argc, char** argv)
 
     int stack = 8;
     int stack2 = 9;
+
+    float potato = 4.0f;
 	
 	| .code
 	| ->test_main:
@@ -33,6 +35,7 @@ int main(int argc, char** argv)
     | vpop {s16-s31}
     | vldm r(stack), {s(stack)-s(stack2)}
     | vmul.f32 s(stack), s(stack), s(stack)
+    | vmov.f32 s0, #(potato)
 	
 	size_t sz;
     dasm_link(Dst, &sz);
