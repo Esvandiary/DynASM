@@ -37,7 +37,10 @@ enum {
   DASM_ALIGN, DASM_REL_LG, DASM_LABEL_LG,
   /* The following actions also have an argument. */
   DASM_REL_PC, DASM_LABEL_PC,
-  DASM_IMM, DASM_IMM12, DASM_IMM16, DASM_IMML, DASM_IMMV8,
+  DASM_IMM, DASM_IMM12, DASM_IMM16,
+  DASM_IMML, DASM_IMMV8, DASM_IMMSHIFT,
+  /* The following actions have two arguments. */
+  DASM_VRLIST,
   DASM__MAX
 };
 
@@ -239,7 +242,9 @@ void dasm_put(Dst_DECL, int start, ...)
     if (action >= DASM__MAX) {
       ofs += 4;
     } else {
-      int *pl, n = action >= DASM_REL_PC ? va_arg(ap, int) : 0;
+      int *pl;
+      int n = action >= DASM_REL_PC ? va_arg(ap, int) : 0;
+      int n2 = action >= DASM_VRLIST ? va_arg(ap, int) : 0;
       switch (action) {
       case DASM_STOP: goto stop;
       case DASM_SECTION:
@@ -303,6 +308,14 @@ void dasm_put(Dst_DECL, int start, ...)
         CK(dasm_imm12((unsigned int)n) != -1, RANGE_I);
         b[pos++] = n;
         break;
+      case DASM_IMMSHIFT:
+        b[pos++] = n;
+        break;
+      case DASM_VRLIST:
+        CK(n >= 0 && n < 31 && n2 >= 0 && n2 < 31, RANGE_I);
+        b[pos++] = n;
+        b[pos++] = n2;
+        break;
       }
     }
   }
@@ -359,7 +372,8 @@ int dasm_link(Dst_DECL, size_t *szp)
         case DASM_REL_LG: case DASM_REL_PC: pos++; break;
         case DASM_LABEL_LG: case DASM_LABEL_PC: b[pos++] += ofs; break;
         case DASM_IMM: case DASM_IMM12: case DASM_IMM16:
-        case DASM_IMML: case DASM_IMMV8: pos++; break;
+        case DASM_IMML: case DASM_IMMV8: case DASM_IMMSHIFT: pos++; break;
+        case DASM_VRLIST: pos += 2; break;
         }
       }
       stop: (void)0;
@@ -408,7 +422,8 @@ int dasm_encode(Dst_DECL, void *buffer)
       while (1) {
         unsigned int ins = *p++;
         unsigned int action = (ins >> 16);
-        int n = (action >= DASM_ALIGN && action < DASM__MAX) ? *b++ : 0;
+        int n  = (action >= DASM_ALIGN  && action < DASM__MAX) ? *b++ : 0;
+        int n2 = (action >= DASM_VRLIST && action < DASM__MAX) ? *b++ : 0;
         switch (action) {
         case DASM_STOP: case DASM_SECTION: goto stop;
         case DASM_ESC:
@@ -450,8 +465,17 @@ int dasm_encode(Dst_DECL, void *buffer)
           cp[-1] |= (n & 0xFF) | (((n >> 8) & 0x7) << 12) | (((n >> 11) & 0x1) << 26) | (((n >> 12) & 0xF) << 16);
           break;
         case DASM_IMML: case DASM_IMMV8: patchimml:
-          /* no restriction on oversized n... problem? */
           cp[-1] |= n >= 0 ? (0x00800000 | n) : (-n);
+          break;
+        case DASM_IMMSHIFT:
+          cp[-1] |= (ins & 0xFFFF) << (n & 31);
+          break;
+        case DASM_VRLIST:
+          n2 = (n2 + 1 - n);    // nr = rb + 1 - ra
+          if ((ins & 0x1) == 0)  // "s" registers
+            cp[-1] |= (((n & 31) >> 1) << 12) + ((n & 1) << 22) + n2;
+          else                   // "d" registers
+            cp[-1] |= ((n & 15) << 12) + (((n & 31) >> 4) << 22) + n2 * 2 + 0x100;
           break;
         default:
           if (cp != buffer)

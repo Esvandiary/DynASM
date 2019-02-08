@@ -37,9 +37,14 @@ local wline, werror, wfatal, wwarn
 -- Action name list.
 -- CHECK: Keep this in sync with the C code!
 local action_names = {
+  -- 0 args
   "STOP", "SECTION", "ESC", "REL_EXT",
   "ALIGN", "REL_LG", "LABEL_LG",
-  "REL_PC", "LABEL_PC", "IMM", "IMM12", "IMM16", "IMML", "IMMV8",
+  -- 1 arg
+  "REL_PC", "LABEL_PC", "IMM", "IMM12", "IMM16",
+  "IMML", "IMMV8", "IMMSHIFT",
+  -- 2 args
+  "VRLIST",
 }
 
 -- Maximum number of section buffer positions for dasm_put().
@@ -98,6 +103,18 @@ local function waction(action, val, a, num)
   wputxw(w * 0x10000 + (val or 0))
   if a then actargs[#actargs+1] = a end
   if a or num then secpos = secpos + (num or 1) end
+end
+
+-- Add action to list with two args. Advance buffer pos, too.
+local function waction2(action, val, a, a2)
+  local w = assert(map_action[action], "bad action name `"..action.."'")
+  wputxw(w * 0x10000 + (val or 0))
+  if not a or not a2 then
+    werror("waction2: both args are mandatory, if you don't need them use waction")
+  end
+  actargs[#actargs+1] = a
+  actargs[#actargs+1] = a2
+  secpos = secpos + 2
 end
 
 local function wimmaction(arg, scale, bits, shift, signed)
@@ -331,8 +348,8 @@ local map_op = {
   pkhbt_4 = "eac00000DNMx", -- v7E-M
   pkhtb_3 = "eac00020DNM",  -- v7E-M
   pkhtb_4 = "eac00020DNMx", -- v7E-M
-  pop_1 = "e8bd0000R|f85d0b04T",
-  push_1 = "e92d0000R|f84d0d00T",
+  pop_1 = "f85d0b04T|e8bd0000R",
+  push_1 = "f84d0d00T|e92d0000R",
   qadd_3 = "fa80f080DMN",   -- v7E-M
   qadd16_3 = "fa90f010DNM", -- v7E-M
   qadd8_3 = "fa80f010DNM",  -- v7E-M
@@ -643,26 +660,47 @@ local function parse_reglist(reglist)
   if not reglist then werror("register list expected") end
   local rr = 0
   for p in gmatch(reglist..",", "%s*([^,]*),") do
-    local rbit = shl(1, parse_gpr(gsub(p, "%s+$", ""), 0, true))
-    if band(rr, rbit) ~= 0 then
-      werror("duplicate register `"..p.."'")
+    -- check if we have a literal GPR
+    local m = match(p, "^[%w_]*:?r(1?[0-9])$")
+    if m then
+      local rbit = shl(1, tonumber(m))
+      if band(rr, rbit) ~= 0 then
+        werror("duplicate register `"..p.."'")
+      end
+      rr = bor(rr, rbit)
+    else
+      local mv = match(p, "^r%(([^)]+)%)$")
+      if mv then
+        waction("IMMSHIFT", 1, mv)
+        -- rr = rr + 0
+      else
+        werror("invalid register signature")
+      end
     end
-    rr = rr + rbit
   end
   return rr
 end
 
 local function parse_vrlist(reglist)
-  local ta, ra, tb, rb = match(reglist,
+  local ta, ras, tb, rbs = match(reglist,
                            "^{%s*([sd])([0-9]+)%s*%-%s*([sd])([0-9]+)%s*}$")
-  ra, rb = tonumber(ra), tonumber(rb)
-  if ta and ta == tb and ra and rb and ra <= 31 and rb <= 31 and ra <= rb then
-    local nr = rb+1 - ra
-    if ta == "s" then
-      return shl(shr(ra,1),12)+shl(band(ra,1),22) + nr
-    else
-      return shl(band(ra,15),12)+shl(shr(ra,4),22) + nr*2 + 0x100
+  if not ras or not rbs then
+    ta, ras, tb, rbs = match(reglist,
+                           "^{%s*([sd])%(([^)-]+)%)%s*%-%s*([sd])%(([^)]+)%)%s*}$")
+  end
+  ra, rb = tonumber(ras), tonumber(rbs)
+  if ta and ta == tb and ra and rb then
+    if ra <= 31 and rb <= 31 and ra <= rb then
+      local nr = rb+1 - ra
+      if ta == "s" then
+        return shl(shr(ra,1),12)+shl(band(ra,1),22) + nr
+      else
+        return shl(band(ra,15),12)+shl(shr(ra,4),22) + nr*2 + 0x100
+      end
     end
+  elseif ta and ta == tb and ras and rbs then
+    waction2("VRLIST", (ta == "d" and 1 or 0), ras, rbs)
+    return 0
   end
   werror("register list expected")
 end

@@ -25,18 +25,13 @@ int main(int argc, char** argv)
     dasm_State** Dst = &state;
 
     int stack = 8;
+    int stack2 = 9;
 	
 	| .code
 	| ->test_main:
-    | movw r0, #65530
-    | movw r0, #65530
-    | ->wat:
-    | movw r0, #65530
-    | movw r0, #65530
-    | ldr r0, ->wat
-    | add r2, r4, #(stack)*4
+    | push {r(stack), lr}
     | vpop {s16-s31}
-    | vldm r(stack), {s0-s3}
+    | vldm r(stack), {s(stack)-s(stack2)}
     | vmul.f32 s(stack), s(stack), s(stack)
 	
 	size_t sz;
