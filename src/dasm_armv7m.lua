@@ -1138,9 +1138,13 @@ map_op[".long_*"] = function(params)
   if not params then return "imm..." end
   for _,p in ipairs(params) do
     local n = tonumber(p)
-    if not n then werror("bad immediate `"..p.."'") end
-    if n < 0 then n = n + 2^32 end
-    wputw(n)
+    if n then
+      if n < 0 then n = n + 2^32 end
+      wputw(n)
+    else
+      pstr = "(int)("..p..")"
+      wimmaction(pstr, 0, 32, 0, false)
+    end
     if secpos+2 > maxsecpos then wflush() end
   end
 end
