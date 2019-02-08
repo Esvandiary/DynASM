@@ -37,7 +37,7 @@ enum {
   DASM_ALIGN, DASM_REL_LG, DASM_LABEL_LG,
   /* The following actions also have an argument. */
   DASM_REL_PC, DASM_LABEL_PC,
-  DASM_IMM, DASM_IMM12, DASM_IMM16, DASM_IMML8, DASM_IMML12, DASM_IMMV8,
+  DASM_IMM, DASM_IMM12, DASM_IMM16, DASM_IMML, DASM_IMMV8,
   DASM__MAX
 };
 
@@ -294,8 +294,7 @@ void dasm_put(Dst_DECL, int start, ...)
         CK((n & 3) == 0, RANGE_I);
         n >>= 2;
         /* fallthrough */
-      case DASM_IMML8:
-      case DASM_IMML12:
+      case DASM_IMML:
         CK(n >= 0 ? ((n>>((ins>>5)&31)) == 0) :
                     (((-n)>>((ins>>5)&31)) == 0), RANGE_I);
         b[pos++] = n;
@@ -360,7 +359,7 @@ int dasm_link(Dst_DECL, size_t *szp)
         case DASM_REL_LG: case DASM_REL_PC: pos++; break;
         case DASM_LABEL_LG: case DASM_LABEL_PC: b[pos++] += ofs; break;
         case DASM_IMM: case DASM_IMM12: case DASM_IMM16:
-        case DASM_IMML8: case DASM_IMML12: case DASM_IMMV8: pos++; break;
+        case DASM_IMML: case DASM_IMMV8: pos++; break;
         }
       }
       stop: (void)0;
@@ -385,7 +384,7 @@ static inline unsigned int dasm_armv7m_encode(dasm_State* d, const unsigned int 
 {
     /* For bytes 3210, on ARMv7-M LE this should become 2301, BE should be 3210 */
     if (d->endianness == DASM_TARGET_LITTLE_ENDIAN)
-        return (v >> 16) + ((v & ((1U << 16) - 1U)) << 16);
+        return (v >> 16) | ((v & ((1U << 16) - 1U)) << 16);
     else
         return v;
 }
@@ -412,12 +411,20 @@ int dasm_encode(Dst_DECL, void *buffer)
         int n = (action >= DASM_ALIGN && action < DASM__MAX) ? *b++ : 0;
         switch (action) {
         case DASM_STOP: case DASM_SECTION: goto stop;
-        case DASM_ESC: *cp++ = dasm_armv7m_encode(D, *p++); break;
+        case DASM_ESC:
+          if (cp != buffer)
+            dasm_armv7m_encode(D, *p);
+          *cp++ = *p++; break;
         case DASM_REL_EXT:
           n = DASM_EXTERN(Dst, (unsigned char *)cp, (ins&2047), !(ins&2048));
           goto patchrel;
         case DASM_ALIGN:
-          ins &= 255; while ((((char *)cp - base) & ins)) *cp++ = dasm_armv7m_encode(D, 0xf3af8000); // NOP
+          ins &= 255;
+          while ((((char *)cp - base) & ins)) {
+            if (cp != buffer)
+              cp[-1] = dasm_armv7m_encode(D, cp[-1]);
+            *cp++ = 0xf3af8000; // NOP
+          }
           break;
         case DASM_REL_LG:
           CK(n >= 0, UNDEF_LG);
@@ -426,22 +433,8 @@ int dasm_encode(Dst_DECL, void *buffer)
           CK(n >= 0, UNDEF_PC);
           n = *DASM_POS2PTR(D, n) - (int)((char *)cp - base) - 4;
         patchrel:
-          // TOCHECK: all of this, so much... different ranges on Thumb-2 I imagine
-          if ((ins & 0x800) == 0) {
-            CK((n & 3) == 0 && ((n+0x02000000) >> 26) == 0, RANGE_REL);
-            cp[-1] |= ((n >> 2) & 0x00ffffff);
-          } else if ((ins & 0x1000)) {
-            CK((n & 3) == 0 && -256 <= n && n <= 256, RANGE_REL);
-            goto patchimml8;
-          } else if ((ins & 0x2000) == 0) {
-            CK((n & 3) == 0 && -4096 <= n && n <= 4096, RANGE_REL);
-            goto patchimml;
-          } else {
-            CK((n & 3) == 0 && -1020 <= n && n <= 1020, RANGE_REL);
-            n >>= 2;
-            goto patchimml;
-          }
-          break;
+          CK((n & 3) == 0 && -4096 <= n && n <= 4096, RANGE_REL);
+          goto patchimml;
         case DASM_LABEL_LG:
           ins &= 2047; if (ins >= 20) D->globals[ins-10] = (void *)(base + n);
           break;
@@ -456,19 +449,19 @@ int dasm_encode(Dst_DECL, void *buffer)
         case DASM_IMM16:
           cp[-1] |= (n & 0xFF) | (((n >> 8) & 0x7) << 12) | (((n >> 11) & 0x1) << 26) | (((n >> 12) & 0xF) << 16);
           break;
-        case DASM_IMML8: patchimml8:
-          // TOCHECK
-          cp[-1] |= n >= 0 ? (0x00800000 | (n & 0x0f) | ((n & 0xf0) << 4)) :
-                             ((-n & 0x0f) | ((-n & 0xf0) << 4));
-          break;
-        case DASM_IMML12: case DASM_IMMV8: patchimml:
-          // TOCHECK
+        case DASM_IMML: case DASM_IMMV8: patchimml:
+          /* no restriction on oversized n... problem? */
           cp[-1] |= n >= 0 ? (0x00800000 | n) : (-n);
           break;
-        default: *cp++ = dasm_armv7m_encode(D, ins); break;
+        default:
+          if (cp != buffer)
+            cp[-1] = dasm_armv7m_encode(D, cp[-1]);
+          *cp++ = ins; break;
         }
       }
-      stop: (void)0;
+      stop:
+      if (cp != buffer)
+        cp[-1] = dasm_armv7m_encode(D, cp[-1]);
     }
   }
 

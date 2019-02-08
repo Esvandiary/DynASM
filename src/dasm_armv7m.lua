@@ -39,7 +39,7 @@ local wline, werror, wfatal, wwarn
 local action_names = {
   "STOP", "SECTION", "ESC", "REL_EXT",
   "ALIGN", "REL_LG", "LABEL_LG",
-  "REL_PC", "LABEL_PC", "IMM", "IMM12", "IMM16", "IMML8", "IMML12", "IMMV8",
+  "REL_PC", "LABEL_PC", "IMM", "IMM12", "IMM16", "IMML", "IMMV8",
 }
 
 -- Maximum number of section buffer positions for dasm_put().
@@ -294,9 +294,9 @@ local map_op = {
   ldrb_3 = "f8100000TL",
   ldrb_4 = "f8100000TL",
   ldrbt_3 = "f8100e00TL",
-  ldrd_2 = "e8500000DT",
-  ldrd_3 = "e8500000DTL",
-  ldrd_4 = "e8500000DTL",
+  -- ldrd_2 = "e8500000DT",   -- supremely annoying to deal with
+  -- ldrd_3 = "e8500000DTL",  -- supremely annoying to deal with
+  -- ldrd_4 = "e8500000DTL",  -- supremely annoying to deal with
   ldrh_2 = "f8300000TL",
   ldrh_3 = "f8300000TL",
   ldrht_3 = "f8300e00TL",
@@ -412,7 +412,7 @@ local map_op = {
   strb_3 = "f8000000TL",
   strb_4 = "f8000000TL",
   strbt_3 = "f8000e00TL",
-  strd_4 = "e8400000TDL",
+  -- strd_4 = "e8400000TDL",  -- supremely annoying to deal with
   strh_2 = "f8200000TL",
   strh_3 = "f8200000TL",
   strht_2 = "f8200e00TL",
@@ -731,24 +731,25 @@ local function parse_imm16(imm)
   end
 end
 
-local function parse_imm_load(imm, ext)
+local function parse_imm_load(imm)
   local n = tonumber(imm)
   if n then
-    if ext then
+    if n < 0 then
+      -- IMM2, 8-bit immediate with sign
       if n >= -255 and n <= 255 then
-        local up = 0x00800000
+        local up = 0x200  -- bit 9
         if n < 0 then n = -n; up = 0 end
-        return shl(band(n, 0xf0), 4) + band(n, 0x0f) + up
+        return n + up + 0x800
       end
     else
-      if n >= -4095 and n <= 4095 then
-        if n >= 0 then return n+0x00800000 end
-        return -n
+      if n <= 4095 then
+        -- IMM1, 12-bit immediate without sign
+        return n + 0x00800000  -- set U bit
       end
     end
     werror("out of range immediate `"..imm.."'")
   else
-    waction(ext and "IMML8" or "IMML12", 32768 + shl(ext and 8 or 12, 5), imm)
+    waction("IMML", 32768 + shl(12, 5), imm)
     return 0
   end
 end
@@ -801,72 +802,70 @@ end
 
 -- TOCHECK
 local function parse_load(params, nparams, n, op)
-  local oplo = band(op, 255)
-  local ext, ldrd = (oplo ~= 0), (oplo == 208) -- TODO: correct ldrd opcode
-  local d
-  if (ldrd or oplo == 240) then -- TOCHECK: 240
-    d = band(shr(op, 12), 15)
-    if band(d, 1) ~= 0 then werror("odd destination register") end
-  end
+  local ophi = shr(op, 20)
   local pn = params[n]
   local p1, wb = match(pn, "^%[%s*(.-)%s*%](!?)$")
   local p2 = params[n+1]
   if not p1 then
     if not p2 then
+      -- label?
       if match(pn, "^[<>=%-]") or match(pn, "^extern%s+") then
         local mode, n, s = parse_label(pn, false)
-        waction("REL_"..mode, n + (ext and 0x1800 or 0x0800), s, 1)
-        return op + 15 * 65536 + 0x01000000 + (ext and 0x00400000 or 0)
+        waction("REL_"..mode, n, s, 1)
+        -- LIT: op + (1111 -> Rn)
+        return op + 15 * 65536
       end
+      -- GPR?
       local reg, tailr = match(pn, "^([%w_:]+)%s*(.*)$")
       if reg and tailr ~= "" then
         local d, tp = parse_gpr(reg)
         if tp then
-          waction(ext and "IMML8" or "IMML12", 32768 + 32*(ext and 8 or 12),
-                  format(tp.ctypefmt, tailr))
-          return op + shl(d, 16) + 0x01000000 + (ext and 0x00400000 or 0)
+          waction("IMML", 32768 + 32*12, format(tp.ctypefmt, tailr))
+          -- IMM1/2: op + (d -> Rn)
+          return op + shl(d, 16)
         end
       end
     end
     werror("expected address operand")
   end
-  if wb == "!" then op = op + 0x00200000 end -- correct for Thumb-2
+  if wb == "!" then op = op + 0x00000100 end  -- only supported by IMM2
   if p2 then
+    -- IMM1/2
     if wb == "!" then werror("bad use of '!'") end
     local p3 = params[n+2]
-    op = op + shl(parse_gpr(p1), 16)
+    op = op + shl(parse_gpr(p1), 16)  -- p1 -> Rn
     local imm = match(p2, "^#(.*)$")
     if imm then
-      local m = parse_imm_load(imm, ext)
+      local m = parse_imm_load(imm)
       if p3 then werror("too many parameters") end
-      op = op + m + (ext and 0x00400000 or 0)
-    else
-      local m, neg = parse_gpr_pm(p2)
-      if ldrd and (m == d or m-1 == d) then werror("register conflict") end
-      op = op + m + (neg and 0 or 0x00800000) + (ext and 0 or 0x02000000)
-      if p3 then op = op + parse_shift(p3) end
+      op = op + m
     end
+    werror("expected immediate as final argument to LDR/STR")
   else
     local p1a, p2 = match(p1, "^([^,%s]*)%s*(.*)$")
-    op = op + shl(parse_gpr(p1a), 16) + 0x01000000
+    op = op + shl(parse_gpr(p1a), 16)
     if p2 ~= "" then
       local imm = match(p2, "^,%s*#(.*)$")
       if imm then
-        local m = parse_imm_load(imm, ext)
-        op = op + m + (ext and 0x00400000 or 0)
+        -- IMM1/2
+        local m = parse_imm_load(imm)
+        op = op + m
       else
+        -- REG
         local p2a, p3 = match(p2, "^,%s*([^,%s]*)%s*,?%s*(.*)$")
-        local m, neg = parse_gpr_pm(p2a)
-        if ldrd and (m == d or m-1 == d) then werror("register conflict") end
-        op = op + m + (neg and 0 or 0x00800000) + (ext and 0 or 0x02000000)
+        local m = parse_gpr(p2a)
+        op = op + m
         if p3 ~= "" then
-          if ext then werror("too many parameters") end
-          op = op + parse_shift(p3)
+          local p3s = parse_shift(p3)
+          if band(p3s, 0x3F) ~= 0 or band(p3s, 0x7000) ~= 0 then
+            werror("only valid shift operand to LDR/STR is LSL #0-3")
+          end
+          op = op + shr(p3s, 2)  -- shift[0-1] normally in bits 6+, we want them in 4+
         end
       end
     else
       if wb == "!" then werror("bad use of '!'") end
-      op = op + (ext and 0x00c00000 or 0x00800000)
+      op = op + 0x00800000
     end
   end
   return op

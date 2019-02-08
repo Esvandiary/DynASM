@@ -3,7 +3,7 @@
 #include "dasm_proto.h"
 
 | .arch armv7m
-| .section rodata, code
+| .section code
 | .globals lbl_
 | .actionlist test_actions
 
@@ -27,6 +27,11 @@ int main(int argc, char** argv)
 	| .code
 	| ->test_main:
     | movw r0, #65530
+    | movw r0, #65530
+    | ->wat:
+    | movw r0, #65530
+    | movw r0, #65530
+    | ldr r0, ->wat
 	
 	size_t sz;
     dasm_link(Dst, &sz);
