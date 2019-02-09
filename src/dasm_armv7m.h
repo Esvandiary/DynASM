@@ -513,10 +513,11 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
           *cp++ = ins; break;
         }
       }
-      stop:
-      if (cp != buffer)
-        cp[-1] = dasm_armv7m_encode(D, cp[-1]);
+    stop:
+      (void)0;
     }
+    if (cp != buffer)
+      cp[-1] = dasm_armv7m_encode(D, cp[-1]);
   }
 
   if (base + D->codesize != (char *)cp)  /* Check for phase errors. */
