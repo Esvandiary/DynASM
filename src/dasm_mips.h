@@ -8,6 +8,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
+#include "dasm_proto.h"
 
 #define DASM_ARCH		"mips"
 
@@ -82,7 +83,7 @@ struct dasm_State {
 
 
 /* Initialize DynASM state. */
-void dasm_init(Dst_DECL, int maxsection)
+DASM_FDEF void dasm_init(Dst_DECL, int maxsection)
 {
   dasm_State *D;
   size_t psz = 0;
@@ -106,7 +107,7 @@ void dasm_init(Dst_DECL, int maxsection)
 }
 
 /* Free DynASM state. */
-void dasm_free(Dst_DECL)
+DASM_FDEF void dasm_free(Dst_DECL)
 {
   dasm_State *D = Dst_REF;
   int i;
@@ -119,7 +120,7 @@ void dasm_free(Dst_DECL)
 }
 
 /* Setup global label array. Must be called before dasm_setup(). */
-void dasm_setupglobal(Dst_DECL, void **gl, unsigned int maxgl)
+DASM_FDEF void dasm_setupglobal(Dst_DECL, void **gl, unsigned int maxgl)
 {
   dasm_State *D = Dst_REF;
   D->globals = gl - 10;  /* Negative bias to compensate for locals. */
@@ -127,7 +128,7 @@ void dasm_setupglobal(Dst_DECL, void **gl, unsigned int maxgl)
 }
 
 /* Grow PC label array. Can be called after dasm_setup(), too. */
-void dasm_growpc(Dst_DECL, unsigned int maxpc)
+DASM_FDEF void dasm_growpc(Dst_DECL, unsigned int maxpc)
 {
   dasm_State *D = Dst_REF;
   size_t osz = D->pcsize;
@@ -136,7 +137,7 @@ void dasm_growpc(Dst_DECL, unsigned int maxpc)
 }
 
 /* Setup encoder. */
-void dasm_setup(Dst_DECL, const void *actionlist)
+DASM_FDEF void dasm_setup(Dst_DECL, const void *actionlist)
 {
   dasm_State *D = Dst_REF;
   int i;
@@ -165,7 +166,7 @@ void dasm_setup(Dst_DECL, const void *actionlist)
 #endif
 
 /* Pass 1: Store actions and args, link branches/labels, estimate offsets. */
-void dasm_put(Dst_DECL, int start, ...)
+DASM_FDEF void dasm_put(Dst_DECL, int start, ...)
 {
   va_list ap;
   dasm_State *D = Dst_REF;
@@ -255,7 +256,7 @@ stop:
 #undef CK
 
 /* Pass 2: Link sections, shrink aligns, fix label offsets. */
-int dasm_link(Dst_DECL, size_t *szp)
+DASM_FDEF int dasm_link(Dst_DECL, size_t *szp)
 {
   dasm_State *D = Dst_REF;
   int secnum;
@@ -320,7 +321,7 @@ int dasm_link(Dst_DECL, size_t *szp)
 #endif
 
 /* Pass 3: Encode sections. */
-int dasm_encode(Dst_DECL, void *buffer)
+DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
 {
   dasm_State *D = Dst_REF;
   char *base = (char *)buffer;
@@ -388,7 +389,7 @@ int dasm_encode(Dst_DECL, void *buffer)
 #undef CK
 
 /* Get PC label offset. */
-int dasm_getpclabel(Dst_DECL, unsigned int pc)
+DASM_FDEF int dasm_getpclabel(Dst_DECL, unsigned int pc)
 {
   dasm_State *D = Dst_REF;
   if (pc*sizeof(int) < D->pcsize) {
@@ -401,7 +402,7 @@ int dasm_getpclabel(Dst_DECL, unsigned int pc)
 
 #ifdef DASM_CHECKS
 /* Optional sanity checker to call between isolated encoding steps. */
-int dasm_checkstep(Dst_DECL, int secmatch)
+DASM_FDEF int dasm_checkstep(Dst_DECL, int secmatch)
 {
   dasm_State *D = Dst_REF;
   if (D->status == DASM_S_OK) {
