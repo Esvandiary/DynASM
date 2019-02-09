@@ -450,9 +450,17 @@ int dasm_encode(Dst_DECL, void *buffer)
           CK(n >= 0, UNDEF_PC);
           n = *DASM_POS2PTR(D, n) - (int)((char *)cp - base) - 4;
         patchrel:
-          if (ins & 32768) {
+          if (ins & 32768) { /* branch */
               CK((n & 1) == 0 && -16777216 <= n && n < 16777216, RANGE_REL);
               goto patchbptr;
+          } else if (ins & 8192) { /* ADR */
+              CK((n & 1) == 0 && -4096 < n && n < 4096, RANGE_REL);
+              if (n < 0) {
+                cp[-1] |= 0x00A00000;
+                n = -n;
+              }
+              cp[-1] |= (n & 0xFF) | (((n >> 8) & 0x7) << 12) | (((n >> 11) & 0x1) << 26);
+              break;
           } else {
               CK((n & 3) == 0 && -4096 <= n && n < 4096, RANGE_REL);
               goto patchimml;
@@ -489,14 +497,14 @@ int dasm_encode(Dst_DECL, void *buffer)
         patchbptr:
           unsigned int isimm10 = (ins & 16384);
           CK((n & 1) == 0 && (isimm10 ? -16777216 : -1048576) <= n && n <= (isimm10 ? 16777216 : 1048576), RANGE_REL);
-          unsigned int S = (n < 0) ? (1 << 26) : 0;
+          unsigned int Sbit = (n < 0) ? 1 : 0;
           unsigned int imm11 = (n >> 1) & 0x7FF;
           unsigned int immr = (((n >> 12) & (isimm10 ? 0x3FF : 0x3F)) << 16);
           unsigned int i1 = ((n >> 1) & (1 << 22)) ? 1 : 0;
           unsigned int i2 = ((n >> 1) & (1 << 21)) ? 1 : 0;
-          unsigned int j1 = ((n < 0 ? 1 : 0) ^ i1) ? 0 : (1 << 13);
-          unsigned int j2 = ((n < 0 ? 1 : 0) ^ i2) ? 0 : (1 << 11);
-          cp[-1] |= imm11 | immr | j2 | j1 | S;
+          unsigned int j1 = (Sbit ^ i1) ? 0 : (1 << 13);
+          unsigned int j2 = (Sbit ^ i2) ? 0 : (1 << 11);
+          cp[-1] |= imm11 | immr | j2 | j1 | (Sbit ? (1 << 26) : 0);
           break;
         default:
           if (cp != buffer)

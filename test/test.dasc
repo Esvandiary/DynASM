@@ -34,6 +34,7 @@ int main(int argc, char** argv)
     | vldm r(stack), {s(stack)-s(stack2)}
     | vmul.f32 s(stack), s(stack), s(stack)
     | b ptr strlen
+    | sxtab r0, r1, r2, ror #16
 
     size_t sz;
     dasm_link(Dst, &sz);

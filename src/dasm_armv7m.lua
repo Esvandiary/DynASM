@@ -297,8 +297,8 @@ local map_op = {
   bic_3 = "ea200000DNMs|f0200000DNIs",
   bic_4 = "ea200000DNMps",
   bkpt_1 = "be00bf00K",  -- with bonus nop
-  cbz_2 = "b100bf00kC",  -- with bonus nop
-  cbnz_2 = "b900bf00kC", -- with bonus nop
+  -- cbz_2 = "b100bf00kC",  -- would be awkward to use (NOP ordering may depend on endianness?)
+  -- cbnz_2 = "b900bf00kC", -- would be awkward to use (NOP ordering may depend on endianness?)
   clz_2 = "fab0f080DZ",
   cmn_2 = "eb100f00NM|f1100f00NI", -- condition flags only
   cmn_3 = "eb100f00NMp",           -- condition flags only
@@ -821,6 +821,21 @@ local function parse_shift(shift)
   end
 end
 
+local function parse_rorshift(s, scale, bits, shift)
+  local op, s2 = match(s, "^(%S+)%s*(.*)$")
+  if op ~= "ror" then werror("only valid rotation here is ror") end
+  if sub(s2, 1, 1) == "#" then
+    local n = tonumber(sub(s2, 2))
+    if n then
+      return parse_imm_n(n, bits, shift, scale, false, false, false)
+    else
+      werror("expected numeric immediate operand")
+    end
+  else
+    werror("expected immediate shift operand")
+  end
+end
+
 local function parse_label(label, def, pbase)
   local prefix = sub(label, 1, 2)
   local base = pbase and pbase or 0
@@ -946,7 +961,7 @@ local function parse_vload(q)
   else
     if match(q, "^[<>=%-]") or match(q, "^extern%s+") then
       local mode, n, s = parse_label(q, false)
-      waction("REL_"..mode, n + 0x2800, s, 1)
+      waction("REL_"..mode, n, s, 1)
       return 15 * 65536
     end
     local reg, tailr = match(q, "^([%w_:]+)%s*(.*)$")
@@ -973,11 +988,10 @@ local function parse_lsbwidth(params, nparams, n, op)
       op = op + parse_imm_n(msbit, 5, 0, 0, false, false, false)
       return op
     else
-      -- TODO: write action
+      -- TODO: write action?
     end
-  else
-    werror("expected two immediate arguments for lsb/width")
   end
+  werror("expected two immediate arguments for lsb/width")
 end
 
 ------------------------------------------------------------------------------
@@ -1002,6 +1016,8 @@ local function parse_template(params, template, nparams, pos)
       op = op + parse_gpr(q, 0);  n = n + 1
     elseif p == "Z" then  -- M, and M in the N slot
       op = op + parse_gpr(q, 0) + parse_gpr(q, 16); n = n + 1
+    elseif p == 'j' then
+      op = op + parse_gpr(q, 19); n = n + 1
     elseif p == "d" then
       op = op + parse_vr(q, vr, 12, 22); n = n + 1
     elseif p == "n" then
@@ -1010,6 +1026,8 @@ local function parse_template(params, template, nparams, pos)
       op = op + parse_vr(q, vr, 0, 5); n = n + 1
     elseif p == "p" then
       op = op + parse_shift(q, true); n = n + 1
+    elseif p == "v" then
+      op = op + parse_rorshift(q, 3, 2, 4); n = n + 1
     elseif p == "L" then
       op = parse_load(params, nparams, n, op)
     elseif p == "l" then
@@ -1023,10 +1041,13 @@ local function parse_template(params, template, nparams, pos)
       n = n + 1
     elseif p == "B" then
       local mode, n, s = parse_label(q, false, 32768 + 16384)
-      waction("REL_"..mode, n, s, 1)
+      waction("REL_"..mode, n, s, 1); n = n + 1
     elseif p == "b" then
       local mode, n, s = parse_label(q, false, 32768)
-      waction("REL_"..mode, n, s, 1)
+      waction("REL_"..mode, n, s, 1); n = n + 1
+    elseif p == "J" then
+      local mode, n, s = parse_label(q, false, 8192)  -- ADR-style
+      waction("REL_"..mode, n, s, 1); n = n + 1
     elseif p == "F" then
       vr = "s"
     elseif p == "G" then
@@ -1043,29 +1064,14 @@ local function parse_template(params, template, nparams, pos)
       op = op + parse_imm16(q); n = n + 1
     elseif p == "I" then
       op = op + parse_imm12(q); n = n + 1
-    elseif p == "v" then
-      op = op + parse_imm(q, 5, 7, 0, false); n = n + 1
-    elseif p == "w" then
-      local imm = match(q, "^#(.*)$")
-      if imm then
-        op = op + parse_imm(q, 5, 7, 0, false); n = n + 1
-      else
-        op = op + parse_gpr(q, 8) + 16
-      end
-    elseif p == "X" then
-      op = op + parse_imm(q, 5, 16, 0, false); n = n + 1
+    elseif p == "K" then
+      op = op + parse_imm(q, 0, 8, 16, false); n = n + 1
     elseif p == "Y" then  -- used by VFP
       local imm = tonumber(match(q, "^#(.*)$")); n = n + 1
       if not imm or shr(imm, 8) ~= 0 then
         werror("bad immediate operand")
       end
       op = op + shl(band(imm, 0xf0), 12) + band(imm, 0x0f)
-    elseif p == "K" then
-      local imm = tonumber(match(q, "^#(.*)$")); n = n + 1
-      if not imm or shr(imm, 16) ~= 0 then
-        werror("bad immediate operand")
-      end
-      op = op + shl(band(imm, 0xfff0), 4) + band(imm, 0x000f)
     elseif p == "s" then
       -- Ignored.
     else

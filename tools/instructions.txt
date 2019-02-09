@@ -4,11 +4,12 @@
 
 # done: T = Rt (12+4), p = shift (type 4+2, imm 6+2, 12+3), Z = Rm + Rm->Rn
 # done: I = imm12 (0+8, 12+3, 26+1), x = imm5 (6+2, 12+3), W = imm16 (0+8, 12+3, 26+1, 16+4)
-# done: B = imm(B), b = imm(Bcond)
+# done: B = imm(B), b = imm(Bcond), K = timm8 (16+8), j = tRm (19+4), J = label + (21=1,23=1 if negative)
+# done: v = shift as imm2 (4+2), can only be ROR #8/16/24
 
-# new (mid) : v = shift as imm2 (4+2), can only be ROR #8/16/24
-# new (hard): J = label + (21=1,23=1 if negative), z = lsbwidth: imm5 (0+5) and x
-# THUMB new: K = timm8 (16+8), k = tRn (16+3), j = tRm (19+4), C = tlabel imm6 ('0', 19+5, 25+1)
+# currently static-only: z = lsbwidth: imm5 (0+5) and x
+
+# cbz/cbnz only: k = tRn (16+3), C = tlabel imm6 ('0', 19+5, 25+1)
 
 # nop16 = 1011 1111 0000 0000
 # nop32 = 1111 0011 1010 1111 1000 0000 0000 0000
@@ -68,8 +69,8 @@ bic_4,1110 1010 0010 0000 0000 0000 0000 0000,DNMps
 
 bkpt_1,1011 1110 0000 0000 1011 1111 0000 0000,K   -- with bonus nop
 
-cbz_2,1011 0001 0000 0000 1011 1111 0000 0000,kC   -- with bonus nop
-cbnz_2,1011 1001 0000 0000 1011 1111 0000 0000,kC  -- with bonus nop
+-- cbz_2,1011 0001 0000 0000 1011 1111 0000 0000,kC   -- would be awkward to use (NOP ordering may depend on endianness?)
+-- cbnz_2,1011 1001 0000 0000 1011 1111 0000 0000,kC  -- would be awkward to use (NOP ordering may depend on endianness?)
 # cdp
 # cdp2
 # clrex
