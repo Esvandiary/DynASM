@@ -9,6 +9,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 #define DASM_ARCH    "armv7m"
 
@@ -36,7 +37,7 @@ enum {
   /* The following actions need a buffer position. */
   DASM_ALIGN, DASM_REL_LG, DASM_LABEL_LG,
   /* The following actions also have an argument. */
-  DASM_REL_PC, DASM_LABEL_PC,
+  DASM_REL_PC, DASM_LABEL_PC, DASM_REL_APC,
   DASM_IMM, DASM_IMM12, DASM_IMM16,
   DASM_IMML, DASM_IMMV8, DASM_IMMSHIFT,
   /* The following actions have two arguments. */
@@ -308,6 +309,7 @@ void dasm_put(Dst_DECL, int start, ...)
         CK(dasm_imm12((unsigned int)n) != -1, RANGE_I);
         b[pos++] = n;
         break;
+      case DASM_REL_APC:
       case DASM_IMMSHIFT:
         b[pos++] = n;
         break;
@@ -369,7 +371,7 @@ int dasm_link(Dst_DECL, size_t *szp)
         case DASM_ESC: p++; break;
         case DASM_REL_EXT: break;
         case DASM_ALIGN: ofs -= (b[pos++] + ofs) & (ins & 255); break;
-        case DASM_REL_LG: case DASM_REL_PC: pos++; break;
+        case DASM_REL_LG: case DASM_REL_PC: case DASM_REL_APC: pos++; break;
         case DASM_LABEL_LG: case DASM_LABEL_PC: b[pos++] += ofs; break;
         case DASM_IMM: case DASM_IMM12: case DASM_IMM16:
         case DASM_IMML: case DASM_IMMV8: case DASM_IMMSHIFT: pos++; break;
@@ -448,8 +450,13 @@ int dasm_encode(Dst_DECL, void *buffer)
           CK(n >= 0, UNDEF_PC);
           n = *DASM_POS2PTR(D, n) - (int)((char *)cp - base) - 4;
         patchrel:
-          CK((n & 3) == 0 && -4096 <= n && n <= 4096, RANGE_REL);
-          goto patchimml;
+          if (ins & 32768) {
+              CK((n & 1) == 0 && -16777216 <= n && n < 16777216, RANGE_REL);
+              goto patchbptr;
+          } else {
+              CK((n & 3) == 0 && -4096 <= n && n < 4096, RANGE_REL);
+              goto patchimml;
+          }
         case DASM_LABEL_LG:
           ins &= 2047; if (ins >= 20) D->globals[ins-10] = (void *)(base + n);
           break;
@@ -476,6 +483,20 @@ int dasm_encode(Dst_DECL, void *buffer)
             cp[-1] |= (((n & 31) >> 1) << 12) + ((n & 1) << 22) + n2;
           else                   // "d" registers
             cp[-1] |= ((n & 15) << 12) + (((n & 31) >> 4) << 22) + n2 * 2 + 0x100;
+          break;
+        case DASM_REL_APC:
+          n -= (int)(intptr_t)cp - 4; /* n -= cp[-1] */
+        patchbptr:
+          unsigned int isimm10 = (ins & 16384);
+          CK((n & 1) == 0 && (isimm10 ? -16777216 : -1048576) <= n && n <= (isimm10 ? 16777216 : 1048576), RANGE_REL);
+          unsigned int S = (n < 0) ? (1 << 26) : 0;
+          unsigned int imm11 = (n >> 1) & 0x7FF;
+          unsigned int immr = (((n >> 12) & (isimm10 ? 0x3FF : 0x3F)) << 16);
+          unsigned int i1 = ((n >> 1) & (1 << 22)) ? 1 : 0;
+          unsigned int i2 = ((n >> 1) & (1 << 21)) ? 1 : 0;
+          unsigned int j1 = ((n < 0 ? 1 : 0) ^ i1) ? 0 : (1 << 13);
+          unsigned int j2 = ((n < 0 ? 1 : 0) ^ i2) ? 0 : (1 << 11);
+          cp[-1] |= imm11 | immr | j2 | j1 | S;
           break;
         default:
           if (cp != buffer)

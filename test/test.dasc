@@ -12,10 +12,10 @@
 
 int main(int argc, char** argv)
 {
-	unsigned npc = 8;
+    unsigned npc = 8;
     unsigned nextpc = 0;
 
-	dasm_State* state;
+    dasm_State* state;
     dasm_init(&state, DASM_MAXSECTION);
     void* labels[lbl__MAX];
     dasm_setupglobal(&state, labels, lbl__MAX);
@@ -27,37 +27,34 @@ int main(int argc, char** argv)
     int stack = 8;
     int stack2 = 9;
 
-    float potato = 4.0f;
-	
-	| .code
-	| ->test_main:
+    | .code
+    | ->test_main:
     | push {r(stack), lr}
     | vpop {s16-s31}
     | vldm r(stack), {s(stack)-s(stack2)}
     | vmul.f32 s(stack), s(stack), s(stack)
-    | vmov.f32 s0, #(potato)
-	
-	size_t sz;
+    | b ptr strlen
+
+    size_t sz;
     dasm_link(Dst, &sz);
-	void* buf = malloc(sz);
+    void* buf = malloc(sz);
     dasm_encode(Dst, buf);
-	
-	size_t len = state->codesize;
+
+    size_t len = state->codesize;
     dasm_free(&state);
     const unsigned char* fn = (const unsigned char*)labels[lbl_test_main];
-	
-	printf("code size = %zu\n", len);
-	for (size_t i = 0; i < len; i += 16) {
-		printf("%08X: ", (unsigned int)i);
-		size_t left = (i + 16 < len) ? 16 : len - i;
-		for (size_t j = 0; j < left; ++j)
-			printf(" %02X", fn[i+j]);
-		printf("\n");
-	}
-	
-	free(buf);
 
+    printf("code size = %zu\n", len);
+    for (size_t i = 0; i < len; i += 16) {
+        printf("%08X: ", (unsigned int)i);
+        size_t left = (i + 16 < len) ? 16 : len - i;
+        for (size_t j = 0; j < left; ++j)
+            printf(" %02X", fn[i+j]);
+        printf("\n");
+    }
+
+    free(buf);
     getchar();
-	
-	return 0;
+
+    return 0;
 }

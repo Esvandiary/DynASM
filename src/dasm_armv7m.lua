@@ -41,7 +41,8 @@ local action_names = {
   "STOP", "SECTION", "ESC", "REL_EXT",
   "ALIGN", "REL_LG", "LABEL_LG",
   -- 1 arg
-  "REL_PC", "LABEL_PC", "IMM", "IMM12", "IMM16",
+  "REL_PC", "LABEL_PC", "REL_APC",
+  "IMM", "IMM12", "IMM16",
   "IMML", "IMMV8", "IMMSHIFT",
   -- 2 args
   "VRLIST",
@@ -820,31 +821,36 @@ local function parse_shift(shift)
   end
 end
 
-local function parse_label(label, def)
+local function parse_label(label, def, pbase)
   local prefix = sub(label, 1, 2)
+  local base = pbase and pbase or 0
   -- =>label (pc label reference)
   if prefix == "=>" then
     return "PC", 0, sub(label, 3)
   end
   -- ->name (global label reference)
   if prefix == "->" then
-    return "LG", map_global[sub(label, 3)]
+    return "LG", map_global[sub(label, 3)] + base
   end
   if def then
     -- [1-9] (local label definition)
     if match(label, "^[1-9]$") then
-      return "LG", 10+tonumber(label)
+      return "LG", 10+tonumber(label) + base
     end
   else
     -- [<>][1-9] (local label reference)
     local dir, lnum = match(label, "^([<>])([1-9])$")
     if dir then -- Fwd: 1-9, Bkwd: 11-19.
-      return "LG", lnum + (dir == ">" and 0 or 10)
+      return "LG", lnum + (dir == ">" and 0 or 10) + base
     end
     -- extern label (extern label reference)
     local extname = match(label, "^extern%s+(%S+)$")
     if extname then
-      return "EXT", map_extern[extname]
+      return "EXT", map_extern[extname] + base
+    end
+    local ptrname = match(label, "^ptr%s+(.+)$")
+    if ptrname then
+      return "APC", base, "(int)("..ptrname..")"
     end
   end
   werror("bad label `"..label.."'")
@@ -858,7 +864,7 @@ local function parse_load(params, nparams, n, op)
   if not p1 then
     if not p2 then
       -- label?
-      if match(pn, "^[<>=%-]") or match(pn, "^extern%s+") then
+      if match(pn, "^[<>=%-]") or match(pn, "^extern%s+") or match(pn, "^ptr%s+") then
         local mode, n, s = parse_label(pn, false)
         waction("REL_"..mode, n, s, 1)
         -- LIT: op + (1111 -> Rn)
@@ -1016,7 +1022,10 @@ local function parse_template(params, template, nparams, pos)
       op = op + parse_imm(q, 3, 12, 2, false, true, false)
       n = n + 1
     elseif p == "B" then
-      local mode, n, s = parse_label(q, false)
+      local mode, n, s = parse_label(q, false, 32768 + 16384)
+      waction("REL_"..mode, n, s, 1)
+    elseif p == "b" then
+      local mode, n, s = parse_label(q, false, 32768)
       waction("REL_"..mode, n, s, 1)
     elseif p == "F" then
       vr = "s"

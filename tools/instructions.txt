@@ -4,9 +4,10 @@
 
 # done: T = Rt (12+4), p = shift (type 4+2, imm 6+2, 12+3), Z = Rm + Rm->Rn
 # done: I = imm12 (0+8, 12+3, 26+1), x = imm5 (6+2, 12+3), W = imm16 (0+8, 12+3, 26+1, 16+4)
+# done: B = imm(B), b = imm(Bcond)
 
 # new (mid) : v = shift as imm2 (4+2), can only be ROR #8/16/24
-# new (hard): B = imm(B), b = imm(Bcond), J = label + (21=1,23=1 if negative), z = lsbwidth: imm5 (0+5) and x
+# new (hard): J = label + (21=1,23=1 if negative), z = lsbwidth: imm5 (0+5) and x
 # THUMB new: K = timm8 (16+8), k = tRn (16+3), j = tRm (19+4), C = tlabel imm6 ('0', 19+5, 25+1)
 
 # nop16 = 1011 1111 0000 0000
