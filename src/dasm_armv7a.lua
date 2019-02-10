@@ -39,7 +39,8 @@ local wline, werror, wfatal, wwarn
 local action_names = {
   "STOP", "SECTION", "ESC", "REL_EXT",
   "ALIGN", "REL_LG", "LABEL_LG",
-  "REL_PC", "LABEL_PC", "IMM", "IMM12", "IMM16", "IMML8", "IMML12", "IMMV8",
+  "REL_PC", "LABEL_PC", "IMM", "IMM12", "IMM16", "IMM32",
+  "IMML8", "IMML12", "IMMV8",
 }
 
 -- Maximum number of section buffer positions for dasm_put().
@@ -111,7 +112,7 @@ end
 
 -- Put escaped word.
 local function wputw(n)
-  if n <= 0x000fffff then waction("ESC") end
+  if n <= 0x001fffff then waction("ESC") end
   wputxw(n)
 end
 
@@ -125,7 +126,7 @@ end
 -- Store word to reserved position.
 local function wputpos(pos, n)
   assert(n >= 0 and n <= 0xffffffff and n % 1 == 0, "word out of range")
-  if n <= 0x000fffff then
+  if n <= 0x001fffff then
     insert(actlist, pos+1, n)
     n = map_action.ESC * 0x10000
   end
@@ -994,9 +995,14 @@ map_op[".long_*"] = function(params)
   if not params then return "imm..." end
   for _,p in ipairs(params) do
     local n = tonumber(p)
-    if not n then werror("bad immediate `"..p.."'") end
-    if n < 0 then n = n + 2^32 end
-    wputw(n)
+    if n then
+      if n < 0 then n = n + 2^32 end
+      wputw(n)
+    else
+      pstr = "(int)("..p..")"
+      wputw(0)
+      waction("IMM32", 0, pstr)
+    end
     if secpos+2 > maxsecpos then wflush() end
   end
 end

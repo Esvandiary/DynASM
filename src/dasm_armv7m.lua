@@ -133,7 +133,7 @@ end
 
 -- Put escaped word.
 local function wputw(n)
-  if n <= 0x002fffff then waction("ESC") end
+  if n <= 0x001fffff then waction("ESC") end
   wputxw(n)
 end
 
@@ -147,7 +147,7 @@ end
 -- Store word to reserved position.
 local function wputpos(pos, n)
   assert(n >= 0 and n <= 0xffffffff and n % 1 == 0, "word out of range")
-  if n <= 0x002fffff then
+  if n <= 0x001fffff then
     insert(actlist, pos+1, n)
     n = map_action.ESC * 0x10000
   end

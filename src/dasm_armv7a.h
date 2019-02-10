@@ -23,7 +23,8 @@ enum {
   DASM_ALIGN, DASM_REL_LG, DASM_LABEL_LG,
   /* The following actions also have an argument. */
   DASM_REL_PC, DASM_LABEL_PC,
-  DASM_IMM, DASM_IMM12, DASM_IMM16, DASM_IMML8, DASM_IMML12, DASM_IMMV8,
+  DASM_IMM, DASM_IMM12, DASM_IMM16, DASM_IMM32,
+  DASM_IMML8, DASM_IMML12, DASM_IMMV8,
   DASM__MAX
 };
 
@@ -250,6 +251,7 @@ DASM_FDEF void dasm_put(Dst_DECL, int start, ...)
         else
           CK((n>>((ins>>5)&31)) == 0, RANGE_I);
 #endif
+      case DASM_IMM32:
         b[pos++] = n;
         break;
       case DASM_IMMV8:
@@ -321,7 +323,7 @@ DASM_FDEF int dasm_link(Dst_DECL, size_t *szp)
         case DASM_ALIGN: ofs -= (b[pos++] + ofs) & (ins & 255); break;
         case DASM_REL_LG: case DASM_REL_PC: pos++; break;
         case DASM_LABEL_LG: case DASM_LABEL_PC: b[pos++] += ofs; break;
-        case DASM_IMM: case DASM_IMM12: case DASM_IMM16:
+        case DASM_IMM: case DASM_IMM12: case DASM_IMM16: case DASM_IMM32:
         case DASM_IMML8: case DASM_IMML12: case DASM_IMMV8: pos++; break;
         }
       }
@@ -405,6 +407,9 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
           break;
         case DASM_IMM16:
           cp[-1] |= ((n & 0xf000) << 4) | (n & 0x0fff);
+          break;
+        case DASM_IMM32:
+          cp[-1] |= n;
           break;
         case DASM_IMML8: patchimml8:
           cp[-1] |= n >= 0 ? (0x00800000 | (n & 0x0f) | ((n & 0xf0) << 4)) :
