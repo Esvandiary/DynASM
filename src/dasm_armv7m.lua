@@ -1154,15 +1154,16 @@ end
 ------------------------------------------------------------------------------
 
 -- Pseudo-opcodes for data storage.
+-- Pre-flip data since it will be flipped back before being emitted
 map_op[".long_*"] = function(params)
   if not params then return "imm..." end
   for _,p in ipairs(params) do
     local n = tonumber(p)
     if n then
       if n < 0 then n = n + 2^32 end
-      wputw(n)
+      wputw(bor(shr(n, 16), shl(band(n, 0xFFFF), 16)))
     else
-      pstr = "(int)("..p..")"
+      pstr = "(((int)("..p..") >> 16) | (((int)("..p..") & 0xFFFF) << 16))"
       wputw(0)
       waction("IMM32", 0, pstr)
     end
