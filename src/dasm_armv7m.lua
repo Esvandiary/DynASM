@@ -1160,8 +1160,9 @@ map_op[".long_*"] = function(params)
   for _,p in ipairs(params) do
     local n = tonumber(p)
     if n then
+      n = bor(shr(n, 16), shl(band(n, 0xFFFF), 16))
       if n < 0 then n = n + 2^32 end
-      wputw(bor(shr(n, 16), shl(band(n, 0xFFFF), 16)))
+      wputw(n)
     else
       pstr = "(((int)("..p..") >> 16) | (((int)("..p..") & 0xFFFF) << 16))"
       wputw(0)
