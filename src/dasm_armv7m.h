@@ -39,7 +39,7 @@ enum {
   DASM_ALIGN, DASM_REL_LG, DASM_LABEL_LG,
   /* The following actions also have an argument. */
   DASM_REL_PC, DASM_LABEL_PC, DASM_REL_APC,
-  DASM_IMM, DASM_IMM12, DASM_IMM16,
+  DASM_IMM, DASM_IMM12, DASM_IMM16, DASM_IMM32,
   DASM_IMML, DASM_IMMV8, DASM_IMMSHIFT,
   /* The following actions have two arguments. */
   DASM_VRLIST,
@@ -295,6 +295,7 @@ DASM_FDEF void dasm_put(Dst_DECL, int start, ...)
         else
           CK((n>>((ins>>5)&31)) == 0, RANGE_I);
 #endif
+      case DASM_IMM32:
         b[pos++] = n;
         break;
       case DASM_IMMV8:
@@ -374,7 +375,7 @@ DASM_FDEF int dasm_link(Dst_DECL, size_t *szp)
         case DASM_ALIGN: ofs -= (b[pos++] + ofs) & (ins & 255); break;
         case DASM_REL_LG: case DASM_REL_PC: case DASM_REL_APC: pos++; break;
         case DASM_LABEL_LG: case DASM_LABEL_PC: b[pos++] += ofs; break;
-        case DASM_IMM: case DASM_IMM12: case DASM_IMM16:
+        case DASM_IMM: case DASM_IMM12: case DASM_IMM16: case DASM_IMM32:
         case DASM_IMML: case DASM_IMMV8: case DASM_IMMSHIFT: pos++; break;
         case DASM_VRLIST: pos += 2; break;
         }
@@ -399,11 +400,11 @@ DASM_FDEF int dasm_link(Dst_DECL, size_t *szp)
 
 static inline unsigned int dasm_armv7m_encode(dasm_State* d, const unsigned int v)
 {
-    /* For bytes 3210, on ARMv7-M LE this should become 2301, BE should be 3210 */
-    if (d->endianness == DASM_TARGET_LITTLE_ENDIAN)
-        return (v >> 16) | ((v & ((1U << 16) - 1U)) << 16);
-    else
-        return v;
+  /* For bytes 3210, on ARMv7-M LE this should become 2301, BE should be 3210 */
+  if (d->endianness == DASM_TARGET_LITTLE_ENDIAN)
+    return (v >> 16) | ((v & ((1U << 16) - 1U)) << 16);
+  else
+    return v;
 }
 
 /* Pass 3: Encode sections. */
@@ -431,7 +432,7 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
         case DASM_STOP: case DASM_SECTION: goto stop;
         case DASM_ESC:
           if (cp != buffer)
-            dasm_armv7m_encode(D, *p);
+            cp[-1] = dasm_armv7m_encode(D, cp[-1]);
           *cp++ = *p++; break;
         case DASM_REL_EXT:
           n = DASM_EXTERN(Dst, (unsigned char *)cp, (ins&2047), !(ins&2048));
@@ -449,23 +450,24 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
           /* fallthrough */
         case DASM_REL_PC:
           CK(n >= 0, UNDEF_PC);
-          n = *DASM_POS2PTR(D, n) - (int)((char *)cp - base) - 4;
+          n = *DASM_POS2PTR(D, n) - (int)((char *)cp - base) - 4; /* TOCHECK the -4 */
         patchrel:
           if (ins & 32768) { /* branch */
-              CK((n & 1) == 0 && -16777216 <= n && n < 16777216, RANGE_REL);
-              goto patchbptr;
+            CK((n & 1) == 0 && -16777216 <= n && n < 16777216, RANGE_REL);
+            goto patchbptr;
+          } else if (ins & 16384) { /* vload IMM8:'00' */
+            n /= 4;
           } else if (ins & 8192) { /* ADR */
-              CK((n & 1) == 0 && -4096 < n && n < 4096, RANGE_REL);
-              if (n < 0) {
-                cp[-1] |= 0x00A00000;
-                n = -n;
-              }
-              cp[-1] |= (n & 0xFF) | (((n >> 8) & 0x7) << 12) | (((n >> 11) & 0x1) << 26);
-              break;
-          } else {
-              CK((n & 3) == 0 && -4096 <= n && n < 4096, RANGE_REL);
-              goto patchimml;
+            CK((n & 1) == 0 && -4096 < n && n < 4096, RANGE_REL);
+            if (n < 0) {
+              cp[-1] |= 0x00A00000;
+              n = -n;
+            }
+            cp[-1] |= (n & 0xFF) | (((n >> 8) & 0x7) << 12) | (((n >> 11) & 0x1) << 26);
+            break;
           }
+          CK((n & 3) == 0 && -4096 <= n && n < 4096, RANGE_REL);
+          goto patchimml;
         case DASM_LABEL_LG:
           ins &= 2047; if (ins >= 20) D->globals[ins-10] = (void *)(base + n);
           break;
@@ -480,6 +482,9 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
         case DASM_IMM16:
           cp[-1] |= (n & 0xFF) | (((n >> 8) & 0x7) << 12) | (((n >> 11) & 0x1) << 26) | (((n >> 12) & 0xF) << 16);
           break;
+        case DASM_IMM32:
+          cp[-1] |= n;
+          break;
         case DASM_IMML: case DASM_IMMV8: patchimml:
           cp[-1] |= n >= 0 ? (0x00800000 | n) : (-n);
           break;
@@ -487,15 +492,16 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
           cp[-1] |= (ins & 0xFFFF) << (n & 31);
           break;
         case DASM_VRLIST:
-          n2 = (n2 + 1 - n);    // nr = rb + 1 - ra
-          if ((ins & 0x1) == 0)  // "s" registers
+          n2 = (n2 + 1 - n);     /* nr = rb + 1 - ra */
+          if ((ins & 0x1) == 0)  /* "s" registers */
             cp[-1] |= (((n & 31) >> 1) << 12) + ((n & 1) << 22) + n2;
-          else                   // "d" registers
+          else                   /* "d" registers */
             cp[-1] |= ((n & 15) << 12) + (((n & 31) >> 4) << 22) + n2 * 2 + 0x100;
           break;
         case DASM_REL_APC:
           n -= (int)(intptr_t)cp - 4; /* n -= cp[-1] */
         patchbptr:
+          (void)0;
           unsigned int isimm10 = (ins & 16384);
           CK((n & 1) == 0 && (isimm10 ? -16777216 : -1048576) <= n && n <= (isimm10 ? 16777216 : 1048576), RANGE_REL);
           unsigned int Sbit = (n < 0) ? 1 : 0;

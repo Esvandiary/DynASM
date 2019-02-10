@@ -42,7 +42,7 @@ local action_names = {
   "ALIGN", "REL_LG", "LABEL_LG",
   -- 1 arg
   "REL_PC", "LABEL_PC", "REL_APC",
-  "IMM", "IMM12", "IMM16",
+  "IMM", "IMM12", "IMM16", "IMM32",
   "IMML", "IMMV8", "IMMSHIFT",
   -- 2 args
   "VRLIST",
@@ -133,7 +133,7 @@ end
 
 -- Put escaped word.
 local function wputw(n)
-  if n <= 0x000fffff then waction("ESC") end
+  if n <= 0x002fffff then waction("ESC") end
   wputxw(n)
 end
 
@@ -147,7 +147,7 @@ end
 -- Store word to reserved position.
 local function wputpos(pos, n)
   assert(n >= 0 and n <= 0xffffffff and n % 1 == 0, "word out of range")
-  if n <= 0x000fffff then
+  if n <= 0x002fffff then
     insert(actlist, pos+1, n)
     n = map_action.ESC * 0x10000
   end
@@ -259,6 +259,11 @@ local map_cond = {
   hs = 2, lo = 3,
 }
 
+function addnop(s, a)
+  return s.."bf00"..a
+end
+local thumb_rm = 19
+
 ------------------------------------------------------------------------------
 
 -- Template strings for ARM instructions.
@@ -290,15 +295,15 @@ local map_op = {
   ble_1 = "f3408000b",
   bl_1 = "f000d000B",
   blal_1 = "f000d000B",
-  blx_1 = "4780bf00j",   -- with bonus nop
-  bx_1 = "4700bf00j",    -- with bonus nop
+  blx_1 = addnop("4780","j"),
+  bx_1 = addnop("4700", "j"),
   bfc_3 = "f36f0000Dz",
   bfi_4 = "f3600000DNz",
   bic_3 = "ea200000DNMs|f0200000DNIs",
   bic_4 = "ea200000DNMps",
-  bkpt_1 = "be00bf00K",  -- with bonus nop
-  -- cbz_2 = "b100bf00kC",  -- would be awkward to use (NOP ordering may depend on endianness?)
-  -- cbnz_2 = "b900bf00kC", -- would be awkward to use (NOP ordering may depend on endianness?)
+  bkpt_1 = addnop("be00", "K"),
+  -- cbz_2 = addnop("b100", "kC"),  -- would be awkward to use (NOP ordering may depend on endianness?)
+  -- cbnz_2 = addnop("b900", "kC"), -- would be awkward to use (NOP ordering may depend on endianness?)
   clz_2 = "fab0f080DZ",
   cmn_2 = "eb100f00NM|f1100f00NI", -- condition flags only
   cmn_3 = "eb100f00NMp",           -- condition flags only
@@ -961,8 +966,8 @@ local function parse_vload(q)
   else
     if match(q, "^[<>=%-]") or match(q, "^extern%s+") then
       local mode, n, s = parse_label(q, false)
-      waction("REL_"..mode, n, s, 1)
-      return 15 * 65536
+      waction("REL_"..mode, n + 16384, s, 1)
+      return 15 * 65536  -- encode PC as Rn
     end
     local reg, tailr = match(q, "^([%w_:]+)%s*(.*)$")
     if reg and tailr ~= "" then
@@ -1017,7 +1022,7 @@ local function parse_template(params, template, nparams, pos)
     elseif p == "Z" then  -- M, and M in the N slot
       op = op + parse_gpr(q, 0) + parse_gpr(q, 16); n = n + 1
     elseif p == 'j' then
-      op = op + parse_gpr(q, 19); n = n + 1
+      op = op + parse_gpr(q, thumb_rm); n = n + 1
     elseif p == "d" then
       op = op + parse_vr(q, vr, 12, 22); n = n + 1
     elseif p == "n" then
@@ -1158,7 +1163,8 @@ map_op[".long_*"] = function(params)
       wputw(n)
     else
       pstr = "(int)("..p..")"
-      wimmaction(pstr, 0, 32, 0, false)
+      wputw(0)
+      waction("IMM32", 0, pstr)
     end
     if secpos+2 > maxsecpos then wflush() end
   end
