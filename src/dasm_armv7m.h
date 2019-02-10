@@ -450,7 +450,11 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
           /* fallthrough */
         case DASM_REL_PC:
           CK(n >= 0, UNDEF_PC);
-          n = *DASM_POS2PTR(D, n) - (int)((char *)cp - base) - 4; /* TODO: -4 breaks v7M-on-v7A */
+#ifdef DASM_ARMV7M_HOST_ARMV7A
+          n = *DASM_POS2PTR(D, n) - (int)((char *)cp - base);
+#else
+          n = *DASM_POS2PTR(D, n) - (int)((char *)cp - base) - 4;
+#endif
         patchrel:
           if (ins & 32768) { /* branch */
             CK((n & 1) == 0 && -16777216 <= n && n < 16777216, RANGE_REL);
