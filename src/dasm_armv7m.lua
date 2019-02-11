@@ -1153,22 +1153,41 @@ end
 
 ------------------------------------------------------------------------------
 
--- Pseudo-opcodes for data storage.
--- Pre-flip data since it will be flipped back before being emitted
+function writelong(p, flip)
+  local n = tonumber(p)
+  if n then
+    if flip then
+      n = bor(shr(n, 16), shl(band(n, 0xFFFF), 16))
+    end
+    if n < 0 then n = n + 2^32 end
+    wputw(n)
+  else
+    local pstr = ""
+    if flip then
+      pstr = "(((int)("..p..") >> 16) | (((int)("..p..") & 0xFFFF) << 16))"
+    else
+      pstr = "(int)("..p..")"
+    end
+    wputw(0)
+    waction("IMM32", 0, pstr)
+  end
+  if secpos+2 > maxsecpos then wflush() end
+end
+
+-- Pseudo-opcode for data storage.
 map_op[".long_*"] = function(params)
   if not params then return "imm..." end
   for _,p in ipairs(params) do
-    local n = tonumber(p)
-    if n then
-      n = bor(shr(n, 16), shl(band(n, 0xFFFF), 16))
-      if n < 0 then n = n + 2^32 end
-      wputw(n)
-    else
-      pstr = "(((int)("..p..") >> 16) | (((int)("..p..") & 0xFFFF) << 16))"
-      wputw(0)
-      waction("IMM32", 0, pstr)
-    end
-    if secpos+2 > maxsecpos then wflush() end
+    writelong(p, false)
+  end
+end
+
+-- Pseudo-opcode for instruction storage.
+-- Pre-flip data so it is flipped back before being emitted
+map_op[".ilong_*"] = function(params)
+  if not params then return "imm..." end
+  for _,p in ipairs(params) do
+    writelong(p, true)
   end
 end
 
