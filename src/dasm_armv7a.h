@@ -22,9 +22,11 @@ enum {
   /* The following actions need a buffer position. */
   DASM_ALIGN, DASM_REL_LG, DASM_LABEL_LG,
   /* The following actions also have an argument. */
-  DASM_REL_PC, DASM_LABEL_PC,
+  DASM_REL_PC, DASM_REL_APC, DASM_LABEL_PC,
   DASM_IMM, DASM_IMM12, DASM_IMM16, DASM_IMM32,
-  DASM_IMML8, DASM_IMML12, DASM_IMMV8,
+  DASM_IMML8, DASM_IMML12, DASM_IMMV8, DASM_IMMSHIFT,
+  /* The following actions also have two arguments. */
+  DASM_VRLIST,
   DASM__MAX
 };
 
@@ -202,7 +204,9 @@ DASM_FDEF void dasm_put(Dst_DECL, int start, ...)
     if (action >= DASM__MAX) {
       ofs += 4;
     } else {
-      int *pl, n = action >= DASM_REL_PC ? va_arg(ap, int) : 0;
+      int *pl;
+      int n = action >= DASM_REL_PC ? va_arg(ap, int) : 0;
+      int n2 = action >= DASM_VRLIST ? va_arg(ap, int) : 0;
       switch (action) {
       case DASM_STOP: goto stop;
       case DASM_SECTION:
@@ -268,6 +272,15 @@ DASM_FDEF void dasm_put(Dst_DECL, int start, ...)
         CK(dasm_imm12((unsigned int)n) != -1, RANGE_I);
         b[pos++] = n;
         break;
+      case DASM_REL_APC:
+      case DASM_IMMSHIFT:
+        b[pos++] = n;
+        break;
+      case DASM_VRLIST:
+        CK(n >= 0 && n < 31 && n2 >= 0 && n2 < 31, RANGE_I);
+        b[pos++] = n;
+        b[pos++] = n2;
+        break;
       }
     }
   }
@@ -321,10 +334,11 @@ DASM_FDEF int dasm_link(Dst_DECL, size_t *szp)
         case DASM_ESC: p++; break;
         case DASM_REL_EXT: break;
         case DASM_ALIGN: ofs -= (b[pos++] + ofs) & (ins & 255); break;
-        case DASM_REL_LG: case DASM_REL_PC: pos++; break;
+        case DASM_REL_LG: case DASM_REL_PC: case DASM_REL_APC: pos++; break;
         case DASM_LABEL_LG: case DASM_LABEL_PC: b[pos++] += ofs; break;
         case DASM_IMM: case DASM_IMM12: case DASM_IMM16: case DASM_IMM32:
-        case DASM_IMML8: case DASM_IMML12: case DASM_IMMV8: pos++; break;
+        case DASM_IMML8: case DASM_IMML12: case DASM_IMMV8: case DASM_IMMSHIFT: pos++; break;
+        case DASM_VRLIST: pos += 2; break;
         }
       }
       stop: (void)0;
@@ -364,6 +378,7 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
         unsigned int ins = *p++;
         unsigned int action = (ins >> 16);
         int n = (action >= DASM_ALIGN && action < DASM__MAX) ? *b++ : 0;
+        int n2 = (action >= DASM_VRLIST && action < DASM__MAX) ? *b++ : 0;
         switch (action) {
         case DASM_STOP: case DASM_SECTION: goto stop;
         case DASM_ESC: *cp++ = *p++; break;
@@ -382,7 +397,7 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
         patchrel:
           if ((ins & 0x800) == 0) {
             CK((n & 3) == 0 && ((n+0x02000000) >> 26) == 0, RANGE_REL);
-            cp[-1] |= ((n >> 2) & 0x00ffffff);
+            goto patchbptr;
           } else if ((ins & 0x1000)) {
             CK((n & 3) == 0 && -256 <= n && n <= 256, RANGE_REL);
             goto patchimml8;
@@ -400,7 +415,14 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
           break;
         case DASM_LABEL_PC: break;
         case DASM_IMM:
-          cp[-1] |= ((n>>((ins>>10)&31)) & ((1<<((ins>>5)&31))-1)) << (ins&31);
+          n2 = (ins >> 10) & 31; /* scale */
+          if (ins & 0x8000) {
+            /* *add/subtract* an offset to the runtime-found value instead of scaling */
+            n += ((ins >> 10) & 0x10) ? -(((int)ins >> 10) & 0x0F) : (((int)ins >> 10) & 0x0F);
+            n2 = 0;
+          }
+          /* *scale* the runtime-found value n down, restrict it to its *bits* count, then *shift* it up */
+          cp[-1] |= ((n>>n2) & ((1<<((ins>>5)&31))-1)) << (ins&31);
           break;
         case DASM_IMM12:
           cp[-1] |= dasm_imm12((unsigned int)n);
@@ -417,6 +439,22 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
           break;
         case DASM_IMML12: case DASM_IMMV8: patchimml:
           cp[-1] |= n >= 0 ? (0x00800000 | n) : (-n);
+          break;
+        case DASM_IMMSHIFT:
+          cp[-1] |= (ins & 0xFFFF) << (n & 31);
+          break;
+        case DASM_VRLIST:
+          n2 = (n2 + 1 - n);     /* nr = rb + 1 - ra */
+          if ((ins & 0x1) == 0)  /* "s" registers */
+            cp[-1] |= (((n & 31) >> 1) << 12) + ((n & 1) << 22) + n2;
+          else                   /* "d" registers */
+            cp[-1] |= ((n & 15) << 12) + (((n & 31) >> 4) << 22) + n2 * 2 + 0x100;
+          break;
+        case DASM_REL_APC:
+          n -= (int)(intptr_t)cp - 4; /* n -= cp[-1] */
+        patchbptr:
+          CK((n & 3) == 0 && -33554432 <= n && n <= 33554428, RANGE_REL);
+          cp[-1] |= ((n >> 2) & 0x00ffffff);
           break;
         default: *cp++ = ins; break;
         }

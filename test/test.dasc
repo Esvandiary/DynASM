@@ -2,12 +2,12 @@
 #include <string.h>
 #include "dasm_proto.h"
 
-| .arch armv7m
+| .arch armv7a
 | .section code
 | .globals lbl_
 | .actionlist test_actions
 
-#include "dasm_armv7m.h"
+#include "dasm_armv7a.h"
 
 
 int main(int argc, char** argv)
@@ -34,9 +34,6 @@ int main(int argc, char** argv)
     | vldm r(stack), {s(stack)-s(stack2)}
     | vmul.f32 s(stack), s(stack), s(stack)
     | b ptr strlen
-    | sxtab r0, r1, r2, ror #16
-    | subw r0, r1, #0x0ff0
-    | addw r1, r9, #0x0387
     int z = 0x1E;
     | ssat r3, #z, r4, lsl #0
     | ssat r3, #z, r4, lsl #31
@@ -47,7 +44,7 @@ int main(int argc, char** argv)
     int x = 0x20;
     int y = -64;
     | ldrd r2, r3, [pc, #x]
-    | strd r3, r4, [pc, #y]
+    | strd r4, r5, [pc, #y]
 
     size_t sz;
     dasm_link(Dst, &sz);
