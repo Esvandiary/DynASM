@@ -7,7 +7,7 @@
 # done: B = imm(B), b = imm(Bcond), K = timm8 (16+8), j = tRm (19+4), J = label + (21=1,23=1 if negative)
 # done: v = shift as imm2 (4+2), can only be ROR #8/16/24
 
-# currently static-only: z = lsbwidth: imm5 (0+5) and x
+# currently static-only: z = lsbwidth: imm5 (0+5)
 
 # cbz/cbnz only: k = tRn (16+3), C = tlabel imm6 ('0', 19+5, 25+1)
 

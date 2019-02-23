@@ -118,8 +118,8 @@ local function waction2(action, val, a, a2)
   secpos = secpos + 2
 end
 
-local function wimmaction(arg, scale, bits, shift, signed)
-  return waction("IMM", (signed and 32768 or 0)+scale*1024+bits*32+shift, arg)
+local function wimmaction(arg, scale, bits, shift, isoffset)
+  return waction("IMM", (isoffset and 32768 or 0)+scale*1024+bits*32+shift, arg)
 end
 
 -- Flush action list (intervening C code or buffer pos overflow).
@@ -272,8 +272,8 @@ local map_op = {
   adc_4 = "eb400000DNMps",
   add_3 = "eb000000DNMs|f1000000DNIs",
   add_4 = "eb000000DNMps",
-  addw_3 = "f2000000DNI", -- TODO: not actually I, normal imm12...
-  adr_2 = "f20f0000DJ", -- TODO: normal imm12, bits 21/23 different depending on direction: before = 1, after = 0
+  addw_3 = "f2000000DNi",
+  adr_2 = "f20f0000DJ",
   and_3 = "ea000000DNMs|f0000000DNIs",
   and_4 = "ea000000DNMps",
   asr_3 = "fa40f000DNMs|ea4f0020DMxs",
@@ -302,8 +302,8 @@ local map_op = {
   bic_3 = "ea200000DNMs|f0200000DNIs",
   bic_4 = "ea200000DNMps",
   bkpt_1 = addnop("be00", "K"),
-  -- cbz_2 = addnop("b100", "kC"),  -- would be awkward to use (NOP ordering may depend on endianness?)
-  -- cbnz_2 = addnop("b900", "kC"), -- would be awkward to use (NOP ordering may depend on endianness?)
+  -- cbz_2 = addnop("b100", "kC"),  -- TODO: would be awkward to use (NOP ordering)
+  -- cbnz_2 = addnop("b900", "kC"), -- TODO: would be awkward to use (NOP ordering)
   clz_2 = "fab0f080DZ",
   cmn_2 = "eb100f00NM|f1100f00NI", -- condition flags only
   cmn_3 = "eb100f00NMp",           -- condition flags only
@@ -321,9 +321,8 @@ local map_op = {
   ldrb_3 = "f8100000TL",
   ldrb_4 = "f8100000TL",
   ldrbt_3 = "f8100e00TL",
-  -- ldrd_2 = "e8500000DT",   -- supremely annoying to deal with
-  -- ldrd_3 = "e8500000DTL",  -- supremely annoying to deal with
-  -- ldrd_4 = "e8500000DTL",  -- supremely annoying to deal with
+  ldrd_3 = "e9500000TDl",
+  ldrd_4 = "e9500000TDl",
   ldrh_2 = "f8300000TL",
   ldrh_3 = "f8300000TL",
   ldrht_3 = "f8300e00TL",
@@ -423,9 +422,9 @@ local map_op = {
   smulwt_3 = "fb30f010DNM",   -- v7E-M
   smusd_3 = "fb40f000DNM",    -- v7E-M
   smusdx_3 = "fb40f010DNM",   -- v7E-M
-  ssat_3 = "f3000000DzN",     -- bit 21 is "sh", unhandled
-  ssat_4 = "f3000000DzNx",    -- bit 21 is "sh", unhandled
-  ssat16_3 = "f3200000DzN",   -- imm is 4 bits not 5 :(
+  ssat_3 = "f3000000DwN",
+  ssat_4 = "f3000000DwNy",
+  ssat16_3 = "f3200000DwN",   -- imm is 4 bits not 5 :(
   ssax_3 = "fae0f000DNM",     -- v7E-M
   ssub16_3 = "fad0f000DNM",   -- v7E-M
   ssub8_3 = "fac0f000DNM",    -- v7E-M
@@ -439,7 +438,8 @@ local map_op = {
   strb_3 = "f8000000TL",
   strb_4 = "f8000000TL",
   strbt_3 = "f8000e00TL",
-  -- strd_4 = "e8400000TDL",  -- supremely annoying to deal with
+  strd_3 = "e9400000TDl",
+  strd_4 = "e9400000TDl",
   strh_2 = "f8200000TL",
   strh_3 = "f8200000TL",
   strht_2 = "f8200e00TL",
@@ -447,7 +447,7 @@ local map_op = {
   strt_3 = "f8400e00TL",
   sub_3 = "eba00000DNMs|f1a00000DNIs",
   sub_4 = "eba00000DNMps",
-  subw_3 = "f2a00000DNI", -- TODO: not actually I, normal imm12...
+  subw_3 = "f2a00000DNi",
   sxtab_3 = "fa40f080DNM",    -- v7E-M
   sxtab_4 = "fa40f080DNMv",   -- v7E-M
   sxtab16_3 = "fa20f080DNM",  -- v7E-M
@@ -488,9 +488,9 @@ local map_op = {
   uqsub8_3 = "fac0f050DNM", -- v7E-M
   usad8_3 = "fb70f000DNM",  -- v7E-M
   usada8_4 = "fb700000DNMT",-- v7E-M
-  usat_3 = "f3800000DzN",   -- bit 21 is "sh", unhandled
-  usat_4 = "f3800000DzNx",  -- bit 21 is "sh", unhandled
-  usat16_3 = "f3a00000DzN", -- v7E-M, imm is actually 4 bits :(
+  usat_3 = "f3800000DwN",
+  usat_4 = "f3800000DwNy",
+  usat16_3 = "f3a00000DwN", -- v7E-M, imm is actually 4 bits :(
   usax_3 = "fae0f040DNM",   -- v7E-M
   usub16_3 = "fad0f040DNM", -- v7E-M
   usub8_3 = "fac0f040DNM",  -- v7E-M
@@ -711,31 +711,48 @@ local function parse_vrlist(reglist)
   werror("register list expected")
 end
 
-local function parse_imm_n(imm, bits, shift, scale, signed, allowlossy, allowoor)
+local function parse_imm_n(imm, bits, shift, scale, allowlossy, allowoor)
   local n = tonumber(imm)
   if n then
     local m = sar(n, scale)
     if allowlossy or shl(m, scale) == n then
       if allowoor then m = band(m, shl(1, bits)-1) end
-      if signed then
-        local s = sar(m, bits-1)
-        if s == 0 then return shl(m, shift)
-        elseif s == -1 then return shl(m + shl(1, bits), shift) end
-      else
-        if sar(m, bits) == 0 then return shl(m, shift) end
-      end
+      if sar(m, bits) == 0 then return shl(m, shift) end
     end
     werror("out of range immediate `"..imm.."'")
   else
-    wimmaction(imm, scale, bits, shift, signed)
+    wimmaction(imm, scale, bits, shift)
     return 0
   end
 end
 
-local function parse_imm(imm, bits, shift, scale, signed, allowlossy, allowoor)
+local function parse_imm(imm, bits, shift, scale, allowlossy, allowoor)
   imm = match(imm, "^#(.*)$")
   if not imm then werror("expected immediate operand") end
-  return parse_imm_n(imm, bits, shift, scale, signed, allowlossy, allowoor)
+  return parse_imm_n(imm, bits, shift, scale, allowlossy, allowoor)
+end
+
+local function parse_immo_n(imm, offset, bits, shift, allowoor)
+  local m = tonumber(imm)
+  if m then
+    m = m + offset
+    if allowoor then m = band(m, shl(1, bits)-1) end
+    if sar(m, bits) == 0 then return shl(m, shift) end
+    werror("out of range immediate `"..imm.."'")
+  else
+    if offset >= -15 and offset <= 15 then
+      if offset < 0 then offset = 16 - offset end
+      wimmaction(imm, offset, bits, shift, true)
+      return 0
+    end
+    werror("out of range offset `"..offset.."'")
+  end
+end
+
+local function parse_immo(imm, offset, bits, shift, allowoor)
+  imm = match(imm, "^#(.*)$")
+  if not imm then werror("expected immediate operand") end
+  return parse_immo_n(imm, offset, bits, shift, allowoor)
 end
 
 local function parse_imm12(imm)
@@ -776,10 +793,10 @@ local function parse_imm16(imm)
   if not imm then werror("expected immediate operand") end
   local n = tonumber(imm)
   if n then
-    result =          parse_imm_n(n, 8, 0, 0, false, false, true)
-    result = result + parse_imm_n(n, 3, 12, 8, false, true, true)
-    result = result + parse_imm_n(n, 1, 26, 11, false, true, true)
-    result = result + parse_imm_n(n, 4, 16, 12, false, true, false)
+    result =          parse_imm_n(n, 8, 0, 0, false, true)
+    result = result + parse_imm_n(n, 3, 12, 8, true, true)
+    result = result + parse_imm_n(n, 1, 26, 11, true, true)
+    result = result + parse_imm_n(n, 4, 16, 12, true, false)
     return result
   else
     waction("IMM16", 32*16, imm)
@@ -819,7 +836,7 @@ local function parse_shift(shift)
     if not s then werror("expected shift operand") end
     if sub(s2, 1, 1) == "#" then
       -- shift in bit 4, then the bottom 2 bits of imm starting bit 6, then the other 3 bits starting bit 12
-      return shl(s, 4) + parse_imm(s2, 2, 6, 0, false, false, true) + parse_imm(s2, 3, 12, 2, false, true)
+      return shl(s, 4) + parse_imm(s2, 2, 6, 0, false, true) + parse_imm(s2, 3, 12, 2, true)
     else
       werror("expected immediate shift operand")
     end
@@ -832,7 +849,27 @@ local function parse_rorshift(s, scale, bits, shift)
   if sub(s2, 1, 1) == "#" then
     local n = tonumber(sub(s2, 2))
     if n then
-      return parse_imm_n(n, bits, shift, scale, false, false, false)
+      return parse_imm_n(n, bits, shift, scale, false, false)
+    else
+      werror("expected numeric immediate operand")
+    end
+  else
+    werror("expected immediate shift operand")
+  end
+end
+
+local function parse_satshift(s)
+  local op, s2 = match(s, "^(%S+)%s*(.*)$")
+  if op ~= "lsl" and op ~= "asr" then werror("only valid rotations here are lsl and asr") end
+  if sub(s2, 1, 1) == "#" then
+    local n = tonumber(sub(s2, 2))
+    s = map_shift[s]
+    if n then
+      if n <= 31 and (op == "lsl" and n >= 0) or (op == "asr" and n > 0) then
+        return shl(s, 20) + parse_imm_n(n, 2, 6, 0, false, true) + parse_imm_n(n, 3, 12, 2, true, false)
+      else
+        werror("expected numeric immediate operand between 0 (LSL) or 1 (ASR) and 31")
+      end
     else
       werror("expected numeric immediate operand")
     end
@@ -988,9 +1025,9 @@ local function parse_lsbwidth(params, nparams, n, op)
     width = tonumber(params[n+1])
     if lsb and width then
       msbit = lsb + width - 1
-      op = op + parse_imm_n(lsb, 2, 6, 0, false, false, true)
-      op = op + parse_imm_n(lsb, 3, 12, 2, false, true, false)
-      op = op + parse_imm_n(msbit, 5, 0, 0, false, false, false)
+      op = op + parse_imm_n(lsb, 2, 6, 0, false, true)
+      op = op + parse_imm_n(lsb, 3, 12, 2, true, false)
+      op = op + parse_imm_n(msbit, 5, 0, 0, false, false)
       return op
     else
       -- TODO: write action?
@@ -1007,6 +1044,7 @@ local function parse_template(params, template, nparams, pos)
   local n = 1
   local vr = "s"
   local lastx = nil
+  local nparams = nparams or #params
 
   -- Process each character.
   for p in gmatch(sub(template, 9), ".") do
@@ -1021,7 +1059,7 @@ local function parse_template(params, template, nparams, pos)
       op = op + parse_gpr(q, 0);  n = n + 1
     elseif p == "Z" then  -- M, and M in the N slot
       op = op + parse_gpr(q, 0) + parse_gpr(q, 16); n = n + 1
-    elseif p == 'j' then
+    elseif p == "j" then
       op = op + parse_gpr(q, thumb_rm); n = n + 1
     elseif p == "d" then
       op = op + parse_vr(q, vr, 12, 22); n = n + 1
@@ -1036,14 +1074,20 @@ local function parse_template(params, template, nparams, pos)
     elseif p == "L" then
       op = parse_load(params, nparams, n, op)
     elseif p == "l" then
-      op = op + parse_vload(q)
+      op = op + parse_vload(q); n = n + 1
     elseif p == "z" then
-      op = op + parse_lsbwidth(params, nparams, n, op)
+      op = parse_lsbwidth(params, nparams, n, op)
       n = n + 2
     elseif p == "x" then
-      op = op + parse_imm(q, 2, 6, 0, false, false, true)
-      op = op + parse_imm(q, 3, 12, 2, false, true, false)
+      op = op + parse_imm(q, 2, 6, 0, false, true)
+      op = op + parse_imm(q, 3, 12, 2, true, false)
       n = n + 1
+    elseif p == "w" then
+      -- bit 23 is set for ssat*, not for usat*
+      local offset = (band(op, shl(1, 23)) == 0) and -1 or 0
+      op = op + parse_immo(q, offset, 5, 0, 0); n = n + 1
+    elseif p == "y" then
+      op = op + parse_satshift(q); n = n + 1
     elseif p == "B" then
       local mode, n, s = parse_label(q, false, 32768 + 16384)
       waction("REL_"..mode, n, s, 1); n = n + 1
@@ -1069,8 +1113,13 @@ local function parse_template(params, template, nparams, pos)
       op = op + parse_imm16(q); n = n + 1
     elseif p == "I" then
       op = op + parse_imm12(q); n = n + 1
+    elseif p == "i" then
+      op = op + parse_imm(q, 8, 0, 0, false, true)
+      op = op + parse_imm(q, 3, 12, 8, true, true)
+      op = op + parse_imm(q, 1, 26, 11, true, false)
+      n = n + 1
     elseif p == "K" then
-      op = op + parse_imm(q, 0, 8, 16, false); n = n + 1
+      op = op + parse_imm(q, 0, 8, 16); n = n + 1
     elseif p == "Y" then  -- used by VFP
       local imm = tonumber(match(q, "^#(.*)$")); n = n + 1
       if not imm or shr(imm, 8) ~= 0 then

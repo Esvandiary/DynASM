@@ -473,8 +473,14 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
           break;
         case DASM_LABEL_PC: break;
         case DASM_IMM:
+          n2 = (ins >> 10) & 31; /* scale */
+          if (ins & 0x8000) {
+            /* *add/subtract* an offset to the runtime-found value instead of scaling */
+            n += ((ins >> 10) & 0x10) ? -(((int)ins >> 10) & 0x0F) : (((int)ins >> 10) & 0x0F);
+            n2 = 0;
+          }
           /* *scale* the runtime-found value n down, restrict it to its *bits* count, then *shift* it up */
-          cp[-1] |= ((n>>((ins>>10)&31)) & ((1<<((ins>>5)&31))-1)) << (ins&31);
+          cp[-1] |= ((n >> n2) & ((1 << ((ins >> 5) & 31)) - 1)) << (ins & 31);
           break;
         case DASM_IMM12:
           cp[-1] |= dasm_imm12((unsigned int)n);
