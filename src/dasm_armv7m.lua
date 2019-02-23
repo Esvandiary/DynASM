@@ -636,7 +636,7 @@ local function parse_gpr(expr, shift, nodefer)
     if rv then
       -- store as action to read later
       wimmaction(rv, 0, 4, shift, false)
-      return 0
+      return 0, tp
     end
   end
   werror("bad register name `"..expr.."'")
@@ -1083,9 +1083,9 @@ local function parse_template(params, template, nparams, pos)
       op = op + parse_imm(q, 3, 12, 2, true, false)
       n = n + 1
     elseif p == "w" then
-      -- bit 23 is set for ssat*, not for usat*
+      -- bit 23 is set for usat*, not for ssat*
       local offset = (band(op, shl(1, 23)) == 0) and -1 or 0
-      op = op + parse_immo(q, offset, 5, 0, 0); n = n + 1
+      op = op + parse_immo(q, offset, 5, 0, false); n = n + 1
     elseif p == "y" then
       op = op + parse_satshift(q); n = n + 1
     elseif p == "B" then
