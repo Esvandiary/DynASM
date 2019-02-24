@@ -19,6 +19,8 @@
 /* Action definitions. */
 enum {
   DASM_STOP, DASM_SECTION, DASM_ESC, DASM_REL_EXT,
+  /* The following actions handle accessing their own arguments. */
+  DASM_SRLIST,
   /* The following actions need a buffer position. */
   DASM_ALIGN, DASM_REL_LG, DASM_LABEL_LG,
   /* The following actions also have an argument. */
@@ -177,6 +179,130 @@ static int dasm_imm12(unsigned int n)
   return -1;
 }
 
+static int dasm_srlist(int ins, int** b)
+{
+  size_t vldn = (ins & 0x3) + 1;
+  size_t size = (ins >> 2) & 0x3;
+  size_t mode = (ins >> 4) & 0x3;
+  size_t isrange = (ins >> 6) & 0x1;
+  size_t isquad = (ins >> 7) & 0x1;
+  size_t count = (ins >> 8) & 0xF;
+  size_t acount = (mode == 1) ? count / 2 : count;
+  CK(count > 0 && count <= 8, RANGE_I);
+  if (count <= 0 || count > 8) goto srlist_invalid;
+
+  int args[8];
+  for (size_t i = 0; i < count; ++i) {
+    args[i] = **b;
+    ++(*b); /* advance pointer */
+  }
+
+  if (mode == 1) {
+    for (size_t i = 1; i < acount; ++i) {
+      if (args[acount + i - 1] != args[acount + i])
+        goto srlist_invalid;
+    }
+    if (args[acount] < 0 || args[acount] * size > 64) goto srlist_invalid;
+  }
+
+  if (isrange) {
+    if ((count != 2 && mode != 1) || (count != 4 && mode == 1))
+      goto srlist_invalid;
+    int r0 = args[0], r1 = args[1], ri = args[2];
+    if (r1 <= r0 || r1 - r0 > 4) goto srlist_invalid;
+    acount = (r1 - r0) + 1;
+    count = acount * (mode == 1 ? 2 : 1);
+    for (size_t i = 0; i < acount; ++i) {
+      args[i] = r0 + i;
+      if (mode == 1)
+        args[acount + i] = ri;
+    }
+  }
+
+  if (isquad) {
+    if (mode == 2) goto srlist_invalid;
+    for (size_t i = 0; i < acount; ++i) {
+      if (mode == 1) {
+        args[i] = args[i] * 2 + (args[acount + i] >= 2 ? 1 : 0);
+        if (args[acount + i] >= 2) args[acount + i] -= 2;
+      } else {
+        args[i] *= 2;
+      }
+    }
+  }
+
+  int stride = (acount > 1) ? (args[1] - args[0]) : 1;
+  if (stride != 1 && stride != 2) goto srlist_invalid;
+  if (args[0] < 0 || args[0] > 31) goto srlist_invalid;
+  for (size_t i = 1; i < acount; ++i) {
+    if (args[i - 1] + stride != args[i])
+      goto srlist_invalid;
+  }
+  if (stride == 2 && vldn == 1) goto srlist_invalid;
+  if (stride == 2 && vldn == 2 && acount != 2) goto srlist_invalid;
+
+
+  int type = 0;
+  if (mode == 0) {
+    if (vldn == 1) {
+      switch (count) {
+      case 1: type = 0x7; break;
+      case 2: type = 0xA; break;
+      case 3: type = 0x6; break;
+      case 4: type = 0x2; break;
+      default: goto srlist_invalid;
+      }
+    } else if (vldn == 2) {
+      switch (count) {
+      case 2: type = (stride == 2) ? 0x9 : 0x8; break;
+      case 4: type = 0x3; break;
+      default: goto srlist_invalid;
+      }
+    } else if (vldn == 3) {
+      switch (count) {
+      case 3: type = (stride == 2) ? 0x5 : 0x4; break;
+      default: goto srlist_invalid;
+      }
+    } else if (vldn == 4) {
+      switch (count) {
+      case 4: type = (stride == 2) ? 0x1 : 0x0; break;
+      default: goto srlist_invalid;
+      }
+    } else {
+      goto srlist_invalid;
+    }
+  }
+
+  int index_align = 0;
+  if (mode == 1) {
+    switch (size) {
+    case 0x00: index_align |= (args[acount] & 0x7) << 1; break;
+    case 0x01: index_align |= (args[acount] & 0x3) << 2; break;
+    case 0x02: index_align |= (args[acount] & 0x1) << 3; break;
+    default: goto srlist_invalid;
+    }
+    if (stride == 2) {
+      switch (size) {
+      case 0x01: index_align |= 1 << 1; break;
+      case 0x02: index_align |= 1 << 2; break;
+      default: goto srlist_invalid;
+      }
+    }
+  }
+
+  int result = ((args[0] & 0xF) << 12) | (((args[0] >> 4) & 0x1) << 22);
+  if (mode == 0)
+    result |= (type & 0xF) << 8;
+  if (mode == 1)
+    result |= (index_align & 0xF) << 4;
+  if (mode == 2)
+    result |= (stride-1) << 5;
+  return result;
+srlist_invalid:
+  CK(0, RANGE_I);
+  return 0;
+}
+
 /* Pass 1: Store actions and args, link branches/labels, estimate offsets. */
 DASM_FDEF void dasm_put(Dst_DECL, int start, ...)
 {
@@ -281,6 +407,12 @@ DASM_FDEF void dasm_put(Dst_DECL, int start, ...)
         b[pos++] = n;
         b[pos++] = n2;
         break;
+      case DASM_SRLIST:
+        /* determine how many args we're meant to have */
+        size_t argcount = ((ins >> 8) & 0xF);
+        for (size_t i = 0; i < argcount; ++i)
+          b[pos++] = va_arg(ap, int);
+        break;
       }
     }
   }
@@ -339,6 +471,7 @@ DASM_FDEF int dasm_link(Dst_DECL, size_t *szp)
         case DASM_IMM: case DASM_IMM12: case DASM_IMM16: case DASM_IMM32:
         case DASM_IMML8: case DASM_IMML12: case DASM_IMMV8: case DASM_IMMSHIFT: pos++; break;
         case DASM_VRLIST: pos += 2; break;
+        case DASM_SRLIST: pos += ((ins >> 8) & 0xF); break;
         }
       }
       stop: (void)0;
@@ -449,6 +582,9 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
             cp[-1] |= (((n & 31) >> 1) << 12) + ((n & 1) << 22) + n2;
           else                   /* "d" registers */
             cp[-1] |= ((n & 15) << 12) + (((n & 31) >> 4) << 22) + n2 * 2 + 0x100;
+          break;
+        case DASM_SRLIST:
+          cp[-1] |= dasm_srlist(ins, &b);
           break;
         case DASM_REL_APC:
           n -= (int)(intptr_t)cp - 4; /* n -= cp[-1] */

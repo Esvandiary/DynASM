@@ -39,6 +39,9 @@ local wline, werror, wfatal, wwarn
 local action_names = {
   -- 0 args
   "STOP", "SECTION", "ESC", "REL_EXT",
+  -- n args (self-handled)
+  "SRLIST",
+  -- 0 args + buffer pos
   "ALIGN", "REL_LG", "LABEL_LG",
   -- 1 arg
   "REL_PC", "REL_APC", "LABEL_PC",
@@ -116,6 +119,16 @@ local function waction2(action, val, a, a2)
   actargs[#actargs+1] = a
   actargs[#actargs+1] = a2
   secpos = secpos + 2
+end
+
+-- Add action to list with N args. Advance buffer pos, too.
+local function wactionn(action, val, al)
+  local w = assert(map_action[action], "bad action name `"..action.."'")
+  wputxw(w * 0x10000 + (val or 0))
+  for i,a in ipairs(al) do
+    actargs[#actargs+1] = a
+  end
+  secpos = secpos + #al
 end
 
 local function wimmaction(arg, scale, bits, shift, isoffset)
@@ -448,18 +461,13 @@ local map_op = {
   svc_1 = "ef000000T", swi_1 = "ef000000T",
   ud_0 = "e7f001f0",
 
-  -- VFP instructions.
-  ["vadd.f32_3"] = "ee300a00dnm",
+  -- VFP
   ["vadd.f64_3"] = "ee300b00Gdnm",
-  ["vsub.f32_3"] = "ee300a40dnm",
   ["vsub.f64_3"] = "ee300b40Gdnm",
-  ["vmul.f32_3"] = "ee200a00dnm",
   ["vmul.f64_3"] = "ee200b00Gdnm",
   ["vnmul.f32_3"] = "ee200a40dnm",
   ["vnmul.f64_3"] = "ee200b40Gdnm",
-  ["vmla.f32_3"] = "ee000a00dnm",
   ["vmla.f64_3"] = "ee000b00Gdnm",
-  ["vmls.f32_3"] = "ee000a40dnm",
   ["vmls.f64_3"] = "ee000b40Gdnm",
   ["vnmla.f32_3"] = "ee100a40dnm",
   ["vnmla.f64_3"] = "ee100b40Gdnm",
@@ -468,9 +476,7 @@ local map_op = {
   ["vdiv.f32_3"] = "ee800a00dnm",
   ["vdiv.f64_3"] = "ee800b00Gdnm",
 
-  ["vabs.f32_2"] = "eeb00ac0dm",
   ["vabs.f64_2"] = "eeb00bc0Gdm",
-  ["vneg.f32_2"] = "eeb10a40dm",
   ["vneg.f64_2"] = "eeb10b40Gdm",
   ["vsqrt.f32_2"] = "eeb10ac0dm",
   ["vsqrt.f64_2"] = "eeb10bc0Gdm",
@@ -496,39 +502,242 @@ local map_op = {
 
   ["vmov.f32_2"] = "eeb00a40dm|eeb00a00dY",        -- #imm is VFPv3 only
   ["vmov.f64_2"] = "eeb00b40Gdm|eeb00b00GdY",        -- #imm is VFPv3 only
-  vmov_2 = "ee100a10Dn|ee000a10nD",
   vmov_3 = "ec500a10DNm|ec400a10mDN|ec500b10GDNm|ec400b10GmDN",
 
   vmrs_0 = "eef1fa10",
   vmrs_1 = "eef10a10D",
   vmsr_1 = "eee10a10D",
 
-  ["vcvt.s32.f32_2"] = "eebd0ac0dm",
   ["vcvt.s32.f64_2"] = "eebd0bc0dGm",
-  ["vcvt.u32.f32_2"] = "eebc0ac0dm",
   ["vcvt.u32.f64_2"] = "eebc0bc0dGm",
   ["vcvtr.s32.f32_2"] = "eebd0a40dm",
   ["vcvtr.s32.f64_2"] = "eebd0b40dGm",
   ["vcvtr.u32.f32_2"] = "eebc0a40dm",
   ["vcvtr.u32.f64_2"] = "eebc0b40dGm",
-  ["vcvt.f32.s32_2"] = "eeb80ac0dm",
   ["vcvt.f64.s32_2"] = "eeb80bc0GdFm",
-  ["vcvt.f32.u32_2"] = "eeb80a40dm",
   ["vcvt.f64.u32_2"] = "eeb80b40GdFm",
   ["vcvt.f32.f64_2"] = "eeb70bc0dGm",
   ["vcvt.f64.f32_2"] = "eeb70ac0GdFm",
 
   -- VFPv4 only:
-  ["vfma.f32_3"] = "eea00a00dnm",
   ["vfma.f64_3"] = "eea00b00Gdnm",
-  ["vfms.f32_3"] = "eea00a40dnm",
   ["vfms.f64_3"] = "eea00b40Gdnm",
   ["vfnma.f32_3"] = "ee900a40dnm",
   ["vfnma.f64_3"] = "ee900b40Gdnm",
   ["vfnms.f32_3"] = "ee900a00dnm",
   ["vfnms.f64_3"] = "ee900b00Gdnm",
 
-  -- NYI: Advanced SIMD instructions.
+  -- NEON/VFP
+  ["vhadd._3"] = "f2000040QdnmU|f2000000GdnmU",
+  ["vhsub._3"] = "f2000240QdnmU|f2000200GdnmU",
+  ["vqadd._3"] = "f2000050QdnmU|f2000010GdnmU",
+  ["vqsub._3"] = "f2000250QdnmU|f2000210GdnmU",
+  ["vrhadd._3"] = "f2000140QdnmU|f2000100GdnmU",
+  vand_3 = "f2000150Qdnm|f2000110Gdnm",
+  vbic_3 = "f2100150Qdnm|f2100110Gdnm",
+  vorr_3 = "f2200150Qdnm|f2200110Gdnm",
+  vmov_2 = "f2200150Qdz|f2200110Gdz|ee100a10Dn|ee000a10nD",
+  vorn_3 = "f2300150Qdnm|f2300110Gdnm",
+  veor_3 = "f3000150Qdnm|f3000110Gdnm",
+  vbsl_3 = "f2100150Qdnm|f2100110Gdnm",
+  vbit_3 = "f2200150Qdnm|f2200110Gdnm",
+  vbif_3 = "f2300150Qdnm|f2300110Gdnm",
+  ["vcgt._3"] = "f2000340QdnmU|f2000300GdnmU",
+  ["vcge._3"] = "f2000350QdnmU|f2000310GdnmU",
+  ["vshl._3"] = "f2000440QdnmU|f2000400GdnmU",
+  ["vqshl._3"] = "f2000450QdnmU|f2000410GdnmU",
+  ["vrshl._3"] = "f2000540QdnmU|f2000500GdnmU",
+  ["vqrshl._3"] = "f2000550QdnmU|f2000510GdnmU",
+  ["vmax._3"] = "f2000640QdnmU|f2000600GdnmU",
+  ["vmin._3"] = "f2000650QdnmU|f2000610GdnmU",
+  ["vabd._3"] = "f2000740QdnmU|f2000700GdnmU",
+  ["vabdl._3"] = "f2800700QdGnmU",
+  ["vaba._3"] = "f2000750QdnmU|f2000710GdnmU",
+  ["vabal._3"] = "f2800500QdGnmU",
+  ["vadd.i_3"] = "f2000840Qdnmu|f2000800Gdnmu",
+  ["vadd.i64_3"] = "f2300840Qdnm|f2300800Gdnm",
+  ["vsub.i_3"] = "f3000840Qdnmu|f3000800Gdnmu",
+  ["vsub.i64_3"] = "f3300840Qdnm|f3300800Gdnm",
+  ["vtst.i_3"] = "f2000850Qdnmu|f2000810Gdnmu",
+  ["vceq.i_3"] = "f3000850Qdnmu|f3000810Gdnmu",
+  ["vmla.i_3"] = "f2000940Qdnmu|f2000900Gdnmu",
+  ["vmlal._3"] = "f2808800QdGnmU",
+  ["vmls.i_3"] = "f3000940Qdnmu|f3000900Gdnmu",
+  ["vmlsl._3"] = "f2808a00QdGnmU",
+  ["vmul.i_3"] = "f2000950Qdnmu|f2000910Gdnmu",
+  ["vmull._3"] = "f2808c00QdGnmU",
+  ["vmul.p8_3"] = "f3000950Qdnm|f2000910Gdnm",
+  ["vmull.p8_3"] = "f2808e00QdGnm",
+  ["vmla.i16_3"] = "f3900040Qdnj|f2900040Gdnj|f3900440Qdnj|f2900440Gdnj",
+  ["vmla.i32_3"] = "f3a00040Qdnj|f2a00040Gdnj|f3a00440Qdnj|f2a00440Gdnj",
+  ["vmla.f32_3"] = "f3a00140Qdnj|f2a00140Gdnj|f2000d50Qdnm|f2000d10Gdnm|ee000a00dnm",
+  ["vmlal.s16_3"] = "f2900240QdGnJ",
+  ["vmlal.s32_3"] = "f2a00240QdGnJ",
+  ["vmlal.u16_3"] = "f3900240QdGnJ",
+  ["vmlal.u32_3"] = "f3a00240QdGnJ",
+  ["vmls.i16_3"] = "f3900440Qdnj|f2900440Gdnj",
+  ["vmls.i32_3"] = "f3a00440Qdnj|f2a00440Gdnj",
+  ["vmls.f32_3"] = "f3a00540Qdnj|f2a00540Gdnj|f2200d50Qdnm|f2200d10Gdnm|ee000a40dnm",
+  ["vmlsl.s16_3"] = "f2900640QdGnJ",
+  ["vmlsl.s32_3"] = "f2a00640QdGnJ",
+  ["vmlsl.u16_3"] = "f3900640QdGnJ",
+  ["vmlsl.u32_3"] = "f3a00640QdGnJ",
+  ["vmul.i16_3"] = "f3900840Qdnj|f2900840Gdnj",
+  ["vmul.i32_3"] = "f3a00840Qdnj|f2a00840Gdnj",
+  ["vmul.f32_3"] = "f3a00940Qdnj|f2a00940Gdnj|f3000d50Qdnm|f3000d10Gdnm|ee200a00dnm",
+  ["vmull.s16_3"] = "f2900a40QdGnJ",
+  ["vmull.s32_3"] = "f2a00a40QdGnJ",
+  ["vmull.u16_3"] = "f3900a40QdGnJ",
+  ["vmull.u32_3"] = "f3a00a40QdGnJ",
+  ["vmls.f32_3"] = "f2200d50Qdnm|f2200d10Gdnm",
+  ["vpmax._3"] = "f2000900GdnmU",
+  ["vpmin._3"] = "f2000910GdnmU",
+  ["vpadd.i_3"] = "f2000b10Gdnmu",
+  ["vqdmulh.s16_3"] = "f2100b40Qdnm|f2100b00Gdnm|f3900c40Qdnk|f3900c40Qdnk",
+  ["vqdmulh.s32_3"] = "f2200b40Qdnm|f2200b00Gdnm|f2a00c40Gdnl|f2a00c40Gdnl",
+  ["vrqdmulh.s16_3"] = "f3100b40Qdnm|f3100b00Gdnm|f3900d40Qdnk|f2900d40Gdnk",
+  ["vrqdmulh.s32_3"] = "f3200b40Qdnm|f3200b00Gdnm|f3a00d40Qdnl|f2a00d40Gdnl",
+  ["vqdmull.s16_3"] = "f2900d00QdGnm|f2900b40QdGnk",
+  ["vqdmull.s32_3"] = "f2a00d00QdGnm|f2a00b40QdGnl",
+  ["vfma.f32_3"] = "f2000c50Qdnm|f2000c10Gdnm|eea00a00dnm", -- q/d ASIMDv2
+  ["vfms.f32_3"] = "f2200c50Qdnm|f2200c10Gdnm|eea00a40dnm", -- q/d ASIMDv2
+  ["vadd.f32_3"] = "f2000d40Qdnm|f2000d00Gdnm|ee300a00dnm",
+  ["vsub.f32_3"] = "f2200d40Qdnm|f2200d00Gdnm|ee300a40dnm",
+  ["vpadd.f32_3"] = "f3000d00Gdnm",
+  ["vabd.f32_3"] = "f3200d40Qdnm|f3200d00Gdnm",
+  ["vceq.f32_3"] = "f2000e40Qdnm|f2000e00Gdnm",
+  ["vcge.f32_3"] = "f3000e40Qdnm|f3000e00Gdnm",
+  ["vcgt.f32_3"] = "f3200e40Qdnm|f3200e00Gdnm",
+  ["vcle.f32_3"] = "f3000e40Qdmn|f3000e00Gdmn",
+  ["vclt.f32_3"] = "f3200e40Qdmn|f3200e00Gdmn",
+  ["vacge.f32_3"] = "f3000e50Qdnm|f3000e10Gdnm",
+  ["vacgt.f32_3"] = "f3200e50Qdnm|f3200e10Gdnm",
+  ["vacle.f32_3"] = "f3000e50Qdmn|f3000e10Gdmn",
+  ["vaclt.f32_3"] = "f3200e50Qdmn|f3200e10Gdmn",
+  ["vmax.f32_3"] = "f2000f40Qdnm|f2000f00Gdnm",
+  ["vmin.f32_3"] = "f2200f40Qdnm|f2200f00Gdnm",
+  ["vpmax.f32_3"] = "f3000f40Qdnm|f3000f00Gdnm",
+  ["vpmin.f32_3"] = "f3200f40Qdnm|f3200f00Gdnm",
+  ["vrecps.f32_3"] = "f2000f50Qdnm|f2000f10Gdnm",
+  ["vrsqrts.f32_3"] = "f2200f50Qdnm|f2200f10Gdnm",
+  ["vaddl._3"] = "f2800000QdGnmU",
+  ["vaddw._3"] = "f2800100QdnGmU",
+  ["vsubl._3"] = "f2800200QdGnmU",
+  ["vsubw._3"] = "f2800300QdnGmU",
+  ["vaddhn.i16_3"] = "f2800400GdQnm",
+  ["vaddhn.i32_3"] = "f2900400GdQnm",
+  ["vaddhn.i64_3"] = "f2a00400GdQnm",
+  ["vsubhn.i16_3"] = "f2800600GdQnm",
+  ["vsubhn.i32_3"] = "f2900600GdQnm",
+  ["vsubhn.i64_3"] = "f2a00600GdQnm",
+  ["vqdmlal.s16_3"] = "f2900900QdGnm|f2900300QdGnk",
+  ["vqdmlal.s32_3"] = "f2a00900QdGnm|f2a00300QdGnl",
+  ["vqdmlsl.s16_3"] = "f2900b00QdGnm|f2900740QdGnk",
+  ["vqdmlsl.s32_3"] = "f2a00b00QdGnm|f2a00740QdGnl",
+  ["vshr.s_3"] = "f2800050Qdmy|f2800010Gdmy",
+  ["vshr.u_3"] = "f3800050Qdmy|f3800010Gdmy",
+  ["vsra.s_3"] = "f2800150Qdmy|f2800110Gdmy",
+  ["vsra.u_3"] = "f3800150Qdmy|f3800110Gdmy",
+  ["vrshr.s_3"] = "f2800250Qdmy|f2800210Gdmy",
+  ["vrshr.u_3"] = "f3800250Qdmy|f3800210Gdmy",
+  ["vrsra.s_3"] = "f2800350Qdmy|f2800310Gdmy",
+  ["vrsra.u_3"] = "f3800350Qdmy|f3800310Gdmy",
+  ["vsri._3"] = "f3800450Qdmy|f3800410Gdmy",
+  ["vshl.i_3"] = "f2800550Qdmx|f2800510Gdmx",
+  ["vsli._3"] = "f3800550Qdmx|f3800510Gdmx",
+  ["vqshl.s_3"] = "f2800750Qdmx|f2800710Gdmx",
+  ["vqshl.u_3"] = "f3800750Qdmx|f3800710Gdmx",
+  ["vqshlu.s_3"] = "f3800650Qdmx|f3800610Gdmx",
+  ["vshrn.i_3"] = "f2800810GdQmy",
+  ["vrshrn.i_3"] = "f2800850GdQm?",   -- y but different
+  ["vqshrn.s_3"] = "f2800910GdQm?",   -- y but different
+  ["vqshrn.u_3"] = "f3800810GdQm?",   -- y but different
+  ["vqshrun.s_3"] = "f3800910GdQm?",  -- y but different
+  ["vqrshrn.s_3"] = "f2800950GdQm?",  -- y but different
+  ["vqrshrn.u_3"] = "f3800950GdQm?",  -- y but different
+  ["vqrshrun.s_3"] = "f3800850GdQm?", -- y but different
+  ["vshll.s_3"] = "f2800a10QdGmx",    -- imm < size
+  ["vshll.u_3"] = "f3800a10QdGmx",    -- imm < size
+  ["vshll.i_3"] = "f3b20300QdGm???",  -- imm == size
+  ["vmovl.s8_2"] = "f2880a10QdGm",
+  ["vmovl.s16_2"] = "f2900a10QdGm",
+  ["vmovl.s32_2"] = "f2a00a10QdGm",
+  ["vmovl.u8_2"] = "f3880a10QdGm",
+  ["vmovl.u16_2"] = "f3900a10QdGm",
+  ["vmovl.u32_2"] = "f3a00a10QdGm",
+  ["vcvt.s32.f32_3"] = "f2800f50Qdm?|f2800f10Gdm?",-- (64-imm6) at 16-- (64-imm6) at 16
+  ["vcvt.u32.f32_3"] = "f3800f50Qdm?|f3800f10Gdm?",-- (64-imm6) at 16-- (64-imm6) at 16
+  ["vcvt.f32.s32_3"] = "f2800e50Qdm?|f2800e10Gdm?",-- (64-imm6) at 16-- (64-imm6) at 16
+  ["vcvt.f32.u32_3"] = "f3800e50Qdm?|f3800e10Gdm?",-- (64-imm6) at 16-- (64-imm6) at 16
+  ["vrev16._2"] = "f3b00140Qdmi|f3b00100Gdmi",
+  ["vrev32._2"] = "f3b000c0Qdmi|f3b00080Gdmi",
+  ["vrev64._2"] = "f3b00040Qdmi|f3b00000Gdmi",
+  ["vpaddl.s_2"] = "f3b00240Qdmi|f3b00200Gdmi",
+  ["vpaddl.u_2"] = "f3b002c0Qdmi|f3b00280Gdmi",
+  ["vcls.s_2"] = "f3b00440Qdmi|f3b00400Gdmi",
+  ["vclz.i_2"] = "f3b004c0Qdmi|f3b00440Gdmi",
+  ["vcnt.8_2"] = "f3b00540Qdm|f3b00500Gdm",
+  vmvn_2 = "f3b005c0Qdm|f3b00580Gdm",
+  ["vpadal.s_2"] = "f3b00640Qdmi|f3b00600Gdmi",
+  ["vpadal.u_2"] = "f3b006c0Qdmi|f3b00680Gdmi",
+  ["vqabs.s_2"] = "f3b00740Qdmi|f3b00700Gdmi",
+  ["vqneg.s_2"] = "f3b007c0Qdmi|f3b00780Gdmi",
+  ["vcgt.s_2"] = "f3b10040Qdmi|f3b10000Gdmi",
+  ["vcgt.f32_2"] = "f3b90440Qdm|f3b90400Gdm",
+  ["vcge.s_2"] = "f3b100c0Qdmi|f3b10080Gdmi",
+  ["vcge.f32_2"] = "f3b904c0Qdm|f3b90480Gdm",
+  ["vceq.s_2"] = "f3b10140Qdmi|f3b10100Gdmi",
+  ["vceq.f32_2"] = "f3b90540Qdm|f3b90500Gdm",
+  ["vcle.s_2"] = "f3b101c0Qdmi|f3b10180Gdmi",
+  ["vcle.f32_2"] = "f3b905c0Qdm|f3b90580Gdm",
+  ["vclt.s_2"] = "f3b10240Qdmi|f3b10200Gdmi",
+  ["vclt.f32_2"] = "f3b90640Qdm|f3b90600Gdm",
+  ["vabs.s_2"] = "f3b10340Qdmi|f3b10300Gdmi",
+  ["vabs.f32_2"] = "f3b90740Qdm|f3b90700Gdm|eeb00ac0dm",
+  ["vneg.s_2"] = "f3b103c0Qdmi|f3b10380Gdmi",
+  ["vneg.f32_2"] = "f3b907c0Qdm|f3b90780Gdm|eeb10a40dm",
+  vswp_2 = "f3b20040Qdm|f3b20000Gdm",
+  ["vtrn._2"] = "f3b200c0Qdmi|f3b20080Gdmi",
+  ["vuzp._2"] = "f3b20140Qdmi|f3b20100Gdmi",
+  ["vzip._2"] = "f3b201c0Qdmi|f3b20180Gdmi",
+  ["vmovn.i16_2"] = "f3b20200GdQm",
+  ["vmovn.i32_2"] = "f3b60200GdQm",
+  ["vmovn.i64_2"] = "f3ba0200GdQm",
+  ["vqmovn.s_2"] = "f3b20280GdQm?", -- p but different
+  ["vqmovn.u_2"] = "f3b202c0GdQm?", -- p but different
+  ["vqmovun.s_2"] = "f3b20240GdQm?",-- p but different
+  ["vcvt.f32.f16_2"] = "f3b60700QdGm",
+  ["vcvt.f16.f32_2"] = "f3b60600GdQm",
+  ["vrecpe.u32_2"] = "f3bb0440Qdm|f3bb0400Gdm",
+  ["vrecpe.f32_2"] = "f3bb0540Qdm|f3bb0500Gdm",
+  ["vsqrte.u32_2"] = "f3bb04c0Qdm|f3bb0480Gdm",
+  ["vsqrte.f32_2"] = "f3bb05c0Qdm|f3bb0580Gdm",
+  ["vcvt.s32.f32_2"] = "f3bb0740Qdm|f3bb0700Gdm|eebd0ac0dm",
+  ["vcvt.u32.f32_2"] = "f3bb07c0Qdm|f3bb0780Gdm|eebc0ac0dm",
+  ["vcvt.f32.s32_2"] = "f3bb0640Qdm|f3bb0600Gdm|eeb80ac0dm",
+  ["vcvt.f32.u32_2"] = "f3bb06c0Qdm|f3bb0680Gdm|eeb80a40dm",
+  ["vld1._2"] = "f42000001aI|f4a000001bO|f4a00c001cI",
+  ["vld1._3"] = "f42000001aI|f4a000001bO|f4a00c001cI",
+  ["vld1.64_2"] = "f42000c01a",
+  ["vld1.64_3"] = "f42000c01a",
+  ["vld2._2"] = "f42000002aI|f4a001002bO|f4a00d002cI",
+  ["vld2._3"] = "f42000002aI|f4a001002bO|f4a00d002cI",
+  ["vld3._2"] = "f42000003aI|f4a002003bO|f4a00e003cI",
+  ["vld3._3"] = "f42000003aI|f4a002003bO|f4a00e003cI",
+  ["vld4._2"] = "f42000004aI|f4a003004bO|f4a00f004cI",
+  ["vld4._3"] = "f42000004aI|f4a003004bO|f4a00f004cI",
+  ["vst1._2"] = "f42000001aI|f4a000001bO",
+  ["vst1._3"] = "f42000001aI|f4a000001bO",
+  ["vst1.64_2"] = "f42000c01a",
+  ["vst1.64_3"] = "f42000c01a",
+  ["vst2._2"] = "f42000002aI|f4a001002bO",
+  ["vst2._3"] = "f42000002aI|f4a001002bO",
+  ["vst3._2"] = "f42000003aI|f4a002003bO",
+  ["vst3._3"] = "f42000003aI|f4a002003bO",
+  ["vst4._2"] = "f42000004aI|f4a003004bO",
+  ["vst4._3"] = "f42000004aI|f4a003004bO",
+
+
 
   -- NYI: I have no need for these instructions right now:
   -- swp, swpb, strex, ldrex, strexd, ldrexd, strexb, ldrexb, strexh, ldrexh
@@ -537,14 +746,60 @@ local map_op = {
   -- stc, ldc, mcr, mcr2, mrc, mrc2, mcrr, mcrr2, mrrc, mrrc2, cdp, cdp2
 }
 
--- Add mnemonics for "s" variants.
+
+local function tappend(t, k, v)
+  if t[k] then
+    t[k] = t[k].."|"..v
+  else
+    t[k] = v
+  end
+end
+
+-- Add mnemonics for variants.
 do
   local t = {}
   for k,v in pairs(map_op) do
-    if sub(v, -1) == "s" then
-      local v2 = sub(v, 1, 2)..char(byte(v, 3)+1)..sub(v, 4, -2)
-      t[sub(k, 1, -3).."s"..sub(k, -2)] = v2
+    local entries = {}
+    for s in gmatch(v, "([^|]+)") do entries[#entries + 1] = s end
+    for i, v in ipairs(entries) do
+      local lastchar = sub(v, -1)
+      -- replacements
+      if lastchar == "U" then  -- variants: s8/s16/s32/u8/u16/u32 @ bit 20
+        tappend(t, sub(k, 1, -3).."s8"..sub(k, -2), sub(v, 1, 2)..char(byte(v, 3)+0)..sub(v, 4, -2))
+        tappend(t, sub(k, 1, -3).."s16"..sub(k, -2), sub(v, 1, 2)..char(byte(v, 3)+1)..sub(v, 4, -2))
+        tappend(t, sub(k, 1, -3).."s32"..sub(k, -2), sub(v, 1, 2)..char(byte(v, 3)+2)..sub(v, 4, -2))
+        tappend(t, sub(k, 1, -3).."u8"..sub(k, -2), sub(v, 1, 1)..char(byte(v, 2)+1)..char(byte(v, 3)+0)..sub(v, 4, -2))
+        tappend(t, sub(k, 1, -3).."u16"..sub(k, -2), sub(v, 1, 1)..char(byte(v, 2)+1)..char(byte(v, 3)+1)..sub(v, 4, -2))
+        tappend(t, sub(k, 1, -3).."u32"..sub(k, -2), sub(v, 1, 1)..char(byte(v, 2)+1)..char(byte(v, 3)+2)..sub(v, 4, -2))
+      elseif lastchar == "u" then  -- variants: 8/16/32 @ bit 20
+        tappend(t, sub(k, 1, -3).."8"..sub(k, -2), sub(v, 1, 2)..char(byte(v, 3)+0)..sub(v, 4, -2))
+        tappend(t, sub(k, 1, -3).."16"..sub(k, -2), sub(v, 1, 2)..char(byte(v, 3)+1)..sub(v, 4, -2))
+        tappend(t, sub(k, 1, -3).."32"..sub(k, -2), sub(v, 1, 2)..char(byte(v, 3)+2)..sub(v, 4, -2))
+      elseif lastchar == "i" then  -- variants: 8/16/32 @ bit 18
+        tappend(t, sub(k, 1, -3).."8"..sub(k, -2), sub(v, 1, 3)..char(byte(v, 4)+0)..sub(v, 5, -2))
+        tappend(t, sub(k, 1, -3).."16"..sub(k, -2), sub(v, 1, 3)..char(byte(v, 4)+4)..sub(v, 5, -2))
+        tappend(t, sub(k, 1, -3).."32"..sub(k, -2), sub(v, 1, 3)..char(byte(v, 4)+8)..sub(v, 5, -2))
+      elseif lastchar == "I" then  -- variants: 8/16/32 @ bit 6
+        tappend(t, sub(k, 1, -3).."8"..sub(k, -2), sub(v, 1, 6)..char(byte(v, 7)+0)..sub(v, 8, -2))
+        tappend(t, sub(k, 1, -3).."16"..sub(k, -2), sub(v, 1, 6)..char(byte(v, 7)+4)..sub(v, 8, -2))
+        tappend(t, sub(k, 1, -3).."32"..sub(k, -2), sub(v, 1, 6)..char(byte(v, 7)+8)..sub(v, 8, -2))
+      elseif lastchar == "O" then  -- variants: 8/16/32 @ bit 10
+        tappend(t, sub(k, 1, -3).."8"..sub(k, -2), sub(v, 1, 5)..char(byte(v, 6)+0)..sub(v, 7, -2))
+        tappend(t, sub(k, 1, -3).."16"..sub(k, -2), sub(v, 1, 5)..char(byte(v, 6)+4)..sub(v, 7, -2))
+        tappend(t, sub(k, 1, -3).."32"..sub(k, -2), sub(v, 1, 5)..char(byte(v, 6)+8)..sub(v, 7, -2))
+      else
+        -- original
+        tappend(t, k, v)
+        -- additions
+        if lastchar == "s" then
+          local v2 = sub(v, 1, 2)..char(byte(v, 3)+1)..sub(v, 4, -2)
+          tappend(t, sub(k, 1, -3).."s"..sub(k, -2), v2)
+        end
+      end
     end
+  end
+  for k,v in pairs(map_op) do
+    map_op[k] = nil
   end
   for k,v in pairs(t) do
     map_op[k] = v
@@ -585,19 +840,31 @@ local function parse_gpr_pm(expr, shift)
 end
 
 local function parse_vr(expr, tp, rp, hp)
-  local t, r = match(expr, "^([sd])([0-9]+)$")
+  local t, r = match(expr, "^([sdq])([0-9]+)$")
   if t == tp then
     r = tonumber(r)
+    if t == "q" then r = r * 2 end
     if r <= 31 then
       if t == "s" then return shl(shr(r, 1), rp) + shl(band(r, 1), hp) end
       return shl(band(r, 15), rp) + shl(shr(r, 4), hp)
     end
   end
-  local tv, rv = match(expr, "^([sd])%(([^)]+)%)$")
+  local tv, rv = match(expr, "^([sdq])%(([^)]+)%)$")
   if tv == tp then
     -- store as action to read later
-    wimmaction(rv, 1, 4, rp, false)
-    wimmaction(rv, 0, 1, hp, false)
+    if tv == "s" then
+      wimmaction(rv, 1, 4, rp, false)
+      wimmaction(rv, 0, 1, hp, false)
+    elseif tv == "d" then
+      wimmaction(rv, 0, 4, rp, false)
+      wimmaction(rv, 4, 1, hp, false)
+    elseif tv == "q" then
+      -- hack: push everything up by 1 bit to double it (q --> d)
+      wimmaction(rv, 0, 3, rp+1, false)
+      wimmaction(rv, 3, 1, hp, false)
+    else
+      werror("invalid register type detected: "..tv)
+    end
     return 0
   end
   werror("bad register name `"..expr.."'")
@@ -906,6 +1173,127 @@ local function parse_vload(q)
   werror("expected address operand")
 end
 
+local function parse_srload_common(q, r)
+  local reglist = match(q, "^%s*{%s*([^}]+)%s*}%s*")
+  if not reglist then
+    werror("expected at least a NEON register list and a GPR")
+  end
+  local align = 0
+  local full1, rn = match(r, "^(%s*%[(r[^%]:]+))")
+  local alignstr, wb = match(sub(r, #full1 + 1), "^:([0-9]+)%s*%](!?)%s*$")
+  if alignstr then
+    align = tonumber(alignstr)
+  else
+    full1, wb = match(sub(r, #full1 + 1), "^(%s*%](!?)%s*)$")
+    if not full1 then
+      werror("unclosed address specifier")
+    end
+  end
+  return reglist, rn, align, wb
+end
+
+local function parse_srload_reglist(l, mode)
+  local indexlist = nil
+  -- range?
+  local r1t, r1ns, r1is, r2t, r2ns, r2is = match(l, "^([dq])([0-9]+)([^%s]*)%s*-%s*([dq])([0-9]+)([^%s]*)$")
+  if not r1t or not r1ns or not r2t or not r2ns then
+    r1t, r1ns, r1is, r2t, r2ns, r2is = match(l, "^([dq])%((.-)%)([^%s]*)%s*-%s*([dq])%((.-)%)([^%s]*)$")
+  end
+  if r1is and #r1is == 0 then r1is = nil end
+  if r2is and #r2is == 0 then r2is = nil end
+  if r1t and r1ns and r2t and r2ns then
+    if r1t ~= r2t then werror("all entries in NEON register range must be of the same type") end
+    if mode == "a" and (r1is or r2is) then
+      werror("invalid NEON register range for this instruction variant") end
+    if mode == "c" and (not r1is or not r2is or r1is ~= "[]" or r2is ~= "[]") then
+      werror("invalid NEON register range for this instruction variant")
+    end
+    if mode == "b" then
+      if not r1is or not r2is then werror("invalid NEON register range for this instruction variant") end
+      r1is = match(r1is, "^%[([^%]]+)%]$")
+      r2is = match(r2is, "^%[([^%]]+)%]$")
+      if not r1is or not r2is then werror("could not parse NEON register indices") end
+      indexlist = {r1is, r2is}
+    end
+    return r1t, {r1ns, r2ns}, indexlist, true
+  end
+  -- list?
+  local rlist = {}
+  if mode == "b" then indexlist = {} end
+  for str in gmatch(l, "([^,]+)") do rlist[#rlist + 1] = str end
+  if #rlist == 0 then werror("expected NEON register list or range") end
+  local regtype = match(rlist[1], "^%s*([dq])[^%s]+%s*$")
+  if not regtype then werror("could not parse NEON register list") end
+  for i,v in ipairs(rlist) do
+    r1t = match(v, "^%s*([dq])[^%s]+%s*$")
+    if not r1t then werror("could not parse NEON register list") end
+    if regtype ~= r1t then werror("all entries in NEON register list must be of the same type") end
+  end
+  for i=1,#rlist do
+    local rl, ris = match(rlist[i], "^%s*[dq]([0-9]+)([^%s]*)%s*$")
+    if not rl then
+      rl, ris = match(rlist[i], "^%s*[dq]%((.-)%)([^%s]*)%s*$")
+    end
+    if not rl then werror("could not parse NEON register list") end
+    if mode == "a" and ris and #ris ~= 0 then werror("invalid NEON register for this instruction variant") end
+    if mode == "c" and (not ris or ris ~= "[]") then werror("invalid NEON register for this instruction variant") end
+    rlist[i] = rl
+    if mode == "b" then
+      if not ris then werror("invalid NEON register list for this instruction variant") end
+      ris = match(ris, "^%[([^%]]+)%]$")
+      if not ris then werror("could not parse NEON register indices") end
+      indexlist[i] = ris
+    end
+  end
+  return regtype, rlist, indexlist, false
+end
+
+local function parse_srload(params, nparams, n, op, vldn, mode)
+  local size = band(shr(op, mode == "b" and 10 or 6), 0x3)
+  local reglstr, rns, align, wb = parse_srload_common(params[n], params[n+1])
+  local srtype, srlist, indexlist, isrange = parse_srload_reglist(reglstr, mode)
+
+  if srtype == "q" and mode == "c" then
+    werror("cannot perform NEON all-lane load/store on quad register")
+  end
+
+  local opadd = 0
+  opadd = opadd + parse_gpr(rns, 16)
+  if n + 2 <= #params then
+    opadd = opadd + parse_gpr(params[n+2], 0)
+  else
+    opadd = opadd + ((wb and wb == "!") and 0xD or 0xF)
+  end
+
+  if (not isrange) and vldn ~= #srlist then
+    if mode == "a" and (vldn == 1 or (vldn == 2 and #srlist == 4)) then
+      -- OK
+    elseif mode == "c" and vldn == 1 and #srlist == 2 then
+      -- OK
+    else
+      werror("invalid register count in register list")
+    end
+  end
+
+  -- TODO: check if alignment is valid, and add it to opadd as appropriate
+
+  if indexlist then
+    for i=1, #indexlist do
+      srlist[#srlist+1] = indexlist[i]
+    end
+  end
+
+  local actval = band(vldn - 1, 0x3)
+  actval = bor(actval, shl(band(size, 0x3), 2))
+  actval = bor(actval, shl(band(byte(mode) - byte("a"), 0x3), 4))
+  actval = bor(actval, shl(isrange and 0x1 or 0x0, 6))
+  actval = bor(actval, shl(srtype == "q" and 0x1 or 0x0, 7))
+  actval = bor(actval, shl(band(#srlist, 0xF), 8))
+
+  wactionn("SRLIST", actval, srlist)
+  return opadd
+end
+
 ------------------------------------------------------------------------------
 
 -- Handle opcodes defined with template strings.
@@ -913,6 +1301,7 @@ local function parse_template(params, template, nparams, pos)
   local op = tonumber(sub(template, 1, 8), 16)
   local n = 1
   local vr = "s"
+  local vldn = 1
 
   -- Process each character.
   for p in gmatch(sub(template, 9), ".") do
@@ -931,9 +1320,10 @@ local function parse_template(params, template, nparams, pos)
       op = op + parse_vr(q, vr, 16, 7); n = n + 1
     elseif p == "m" then
       op = op + parse_vr(q, vr, 0, 5); n = n + 1
-    elseif p == "z" then
-      -- m, and m in the n slot also
+    elseif p == "z" then  -- m, and m in the n slot also
       op = op + parse_vr(q, vr, 0, 5) + parse_vr(q, vr, 16, 7); n = n + 1
+    --elseif p == "j" then
+    --  op = op + parse_sr_index(...)
     elseif p == "P" then
       local imm = match(q, "^#(.*)$")
       if imm then
@@ -964,6 +1354,8 @@ local function parse_template(params, template, nparams, pos)
       vr = "s"
     elseif p == "G" then
       vr = "d"
+    elseif p == "Q" then
+      vr = "q"
     elseif p == "o" then
       local r, wb = match(q, "^([^!]*)(!?)$")
       op = op + parse_gpr(r, 16) + (wb == "!" and 0x00200000 or 0)
@@ -1001,7 +1393,11 @@ local function parse_template(params, template, nparams, pos)
       op = op + shl(band(imm, 0xfff0), 4) + band(imm, 0x000f)
     elseif p == "T" then
       op = op + parse_imm(q, 24, 0, 0); n = n + 1
-    elseif p == "s" then
+    elseif p == "1" or p == "2" or p == "3" or p == "4" then
+      vldn = tonumber(p)
+    elseif p == "a" or p == "b" or p == "c" then
+      op = op + parse_srload(params, nparams, n, op, vldn, p); n = n + 1
+    elseif string.find("sUuIiO", p) then
       -- Ignored.
     else
       assert(false)

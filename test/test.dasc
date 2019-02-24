@@ -45,6 +45,10 @@ int main(int argc, char** argv)
     int y = -64;
     | ldrd r2, r3, [pc, #x]
     | strd r4, r5, [pc, #y]
+    | vmul.f32 q4, q5, q6
+    | vadd.f32 q(stack), q(stack+1), q(stack+2)
+    | vld1.32 {d(stack)-d(stack+3)}, [r2], r3
+    | vld4.32 {d(stack)[], d(stack+2)[], d(stack+4)[], d(stack+6)[]}, [r2], r3
 
     size_t sz;
     dasm_link(Dst, &sz);
