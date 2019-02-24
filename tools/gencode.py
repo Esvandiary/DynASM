@@ -27,4 +27,4 @@ for l in xl:
         d[l[0]] = [l[1] + l[2], l[3]]
 
 with open(sys.argv[2], 'w') as f:
-    f.writelines('  {0} = "{1}",{2}\n'.format(k, v[0], v[1]) for k, v in d.items())
+    f.writelines('  {0} = "{1}",{2}\n'.format('["{0}"]'.format(k) if '.' in k else k, v[0], v[1]) for k, v in d.items())
