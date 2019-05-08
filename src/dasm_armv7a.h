@@ -8,6 +8,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include "dasm_proto.h"
 
 #define DASM_ARCH    "armv7a"
@@ -409,8 +410,7 @@ DASM_FDEF void dasm_put(Dst_DECL, int start, ...)
         break;
       case DASM_SRLIST:
         /* determine how many args we're meant to have */
-        size_t argcount = ((ins >> 8) & 0xF);
-        for (size_t i = 0; i < argcount; ++i)
+        for (size_t i = 0; i < ((ins >> 8) & 0xF); ++i)
           b[pos++] = va_arg(ap, int);
         break;
       }
