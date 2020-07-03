@@ -311,7 +311,9 @@ DASM_FDEF int dasm_link(Dst_DECL, size_t *szp)
         switch (action) {
         case DASM_REL_LG: p++; op = p[-3]; goto rel_pc;
         case DASM_REL_PC: op = p[-2]; rel_pc: {
-          int shrink = op == 0xe9 ? 3 : ((op&0xf0) == 0x80 ? 4 : 0);
+          // TODO: disabled - generates invalid code for MOVAPS/MOVUPS xmm, m128
+          // int shrink = op == 0xe9 ? 3 : ((op&0xf0) == 0x80 ? 4 : 0);
+          int shrink = 0;
           if (shrink) {  /* Shrinkable branch opcode? */
             int lofs, lpos = b[pos];
             if (lpos < 0) goto noshrink;  /* Ext global? */
