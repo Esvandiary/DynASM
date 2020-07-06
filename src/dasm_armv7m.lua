@@ -566,8 +566,8 @@ local map_op = {
   vmov_3 = "ec500a10DNm|ec400a10mDN|ec500b10GDNm|ec400b10GmDN",
 
   vmrs_0 = "eef1fa10",
-  vmrs_1 = "eef10a10D",
-  vmsr_1 = "eee10a10D",
+  vmrs_1 = "eef10a10T",
+  vmsr_1 = "eee10a10T",
 
   ["vcvt.s32.f32_2"] = "eebd0ac0dm",
   ["vcvt.s32.f64_2"] = "eebd0bc0dGm",
