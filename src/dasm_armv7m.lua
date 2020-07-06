@@ -137,6 +137,12 @@ local function wputw(n)
   wputxw(n)
 end
 
+-- Put escaped word.
+local function wputraw(n)
+  if n <= 0x001fffff then waction("ESC") end
+  actlist[#actlist+1] = n
+end
+
 -- Reserve position for word.
 local function wpos()
   local pos = #actlist+1
@@ -1209,15 +1215,15 @@ function writelong(p, flip)
       n = bor(shr(n, 16), shl(band(n, 0xFFFF), 16))
     end
     if n < 0 then n = n + 2^32 end
-    wputw(n)
+    wputraw(n)
   else
     local pstr = ""
     if flip then
-      pstr = "(((int)("..p..") >> 16) | (((int)("..p..") & 0xFFFF) << 16))"
+      pstr = "(((uint32_t)("..p..") >> 16) | (((uint32_t)("..p..") & 0xFFFF) << 16))"
     else
-      pstr = "(int)("..p..")"
+      pstr = "(uint32_t)("..p..")"
     end
-    wputw(0)
+    wputraw(0)
     waction("IMM32", 0, pstr)
   end
   if secpos+2 > maxsecpos then wflush() end
