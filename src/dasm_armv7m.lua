@@ -1230,19 +1230,19 @@ function writelong(p, flip)
 end
 
 -- Pseudo-opcode for data storage.
+-- Pre-flip data so it is flipped back before being emitted
 map_op[".long_*"] = function(params)
   if not params then return "imm..." end
   for _,p in ipairs(params) do
-    writelong(p, false)
+    writelong(p, true)
   end
 end
 
 -- Pseudo-opcode for instruction storage.
--- Pre-flip data so it is flipped back before being emitted
 map_op[".ilong_*"] = function(params)
   if not params then return "imm..." end
   for _,p in ipairs(params) do
-    writelong(p, true)
+    writelong(p, false)
   end
 end
 

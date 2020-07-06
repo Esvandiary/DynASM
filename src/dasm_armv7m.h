@@ -402,7 +402,7 @@ static inline unsigned int dasm_armv7m_encode(dasm_State* d, const unsigned int 
 {
   /* For bytes 3210, on ARMv7-M LE this should become 2301, BE should be 3210 */
   if (d->endianness == DASM_TARGET_LITTLE_ENDIAN)
-    return (v >> 16) | ((v & ((1U << 16) - 1U)) << 16);
+    return (v >> 16) | ((v & 0xFFFFU) << 16);
   else
     return v;
 }
@@ -528,9 +528,10 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
     stop:
       (void)0;
     }
-    if (cp != buffer)
-      cp[-1] = dasm_armv7m_encode(D, cp[-1]);
   }
+
+  if (cp != buffer)
+    cp[-1] = dasm_armv7m_encode(D, cp[-1]);
 
   if (base + D->codesize != (char *)cp)  /* Check for phase errors. */
     return DASM_S_PHASE;
