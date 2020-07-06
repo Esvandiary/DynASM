@@ -508,16 +508,23 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
           n -= (int)(intptr_t)cp - 4; /* n -= cp[-1] */
         patchbptr:
           (void)0;
-          unsigned int isimm10 = (ins & 16384);
+          const unsigned int isimm10 = (ins & 16384);
           CK((n & 1) == 0 && (isimm10 ? -16777216 : -1048576) <= n && n <= (isimm10 ? 16777216 : 1048576), RANGE_REL);
-          unsigned int Sbit = (n < 0) ? 1 : 0;
-          unsigned int imm11 = (n >> 1) & 0x7FF;
-          unsigned int immr = (((n >> 12) & (isimm10 ? 0x3FF : 0x3F)) << 16);
-          unsigned int i1 = ((n >> 1) & (1 << 22)) ? 1 : 0;
-          unsigned int i2 = ((n >> 1) & (1 << 21)) ? 1 : 0;
-          unsigned int j1 = (Sbit ^ i1) ? 0 : (1 << 13);
-          unsigned int j2 = (Sbit ^ i2) ? 0 : (1 << 11);
-          cp[-1] |= imm11 | immr | j2 | j1 | (Sbit ? (1 << 26) : 0);
+          const unsigned int Sbit = (n < 0) & 0x1;
+          const unsigned int imm11 = (n >> 1) & 0x7FF;
+          const unsigned int immr = (((n >> 12) & (isimm10 ? 0x3FF : 0x3F)) << 16);
+          cp[-1] |= imm11 | immr | (Sbit << 26);
+          if (isimm10) {
+            const unsigned int i1 = ((n >> 1) & (1 << 22)) >> 22;
+            const unsigned int i2 = ((n >> 1) & (1 << 21)) >> 21;
+            const unsigned int j1 = (~(Sbit ^ i1) & 0x1) << 13;
+            const unsigned int j2 = (~(Sbit ^ i2) & 0x1) << 11;
+            cp[-1] |= j1 | j2;
+          } else {
+            const unsigned int j1 = ((n >> 1) & (1 << 18)) >> (18 - 13);
+            const unsigned int j2 = ((n >> 1) & (1 << 19)) >> (19 - 11);
+            cp[-1] |= j1 | j2;
+          }
           break;
         default:
           if (cp != buffer)
