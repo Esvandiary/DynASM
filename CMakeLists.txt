@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.8)
+project(DynASM)
 
-add_subdirectory("minilua")
+add_subdirectory("minilua" "${CMAKE_CURRENT_BINARY_DIR}/minilua")
 
 add_library(dynasm INTERFACE)
 target_include_directories(dynasm INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -16,6 +17,7 @@ function(add_dasm_compile_command infile outfile)
         OUTPUT "${outfile}"
         COMMAND "$<TARGET_FILE:minilua>" "${DYNASM_SOURCE_DIR}/src/dynasm.lua" -o "${outfile}" ${extra_args} "${infile}"
         MAIN_DEPENDENCY "${infile}"
+        DEPENDS minilua
         VERBATIM
         USES_TERMINAL
         COMMENT "Preprocessing DynASM source file ${infile} ...")
