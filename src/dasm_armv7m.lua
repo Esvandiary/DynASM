@@ -562,8 +562,8 @@ local map_op = {
 
   ["vmov.f32_2"] = "eeb00a40dm|eeb00a00dY",        -- #imm is VFPv3 only
   ["vmov.f64_2"] = "eeb00b40Gdm|eeb00b00GdY",        -- #imm is VFPv3 only
-  vmov_2 = "ee100a10Dn|ee000a10nD",
-  vmov_3 = "ec500a10DNm|ec400a10mDN|ec500b10GDNm|ec400b10GmDN",
+  vmov_2 = "ee100a10Tn|ee000a10nT",
+  vmov_3 = "ec500a10TNm|ec400a10mTN|ec500b10GTNm|ec400b10GmTN",
 
   vmrs_0 = "eef1fa10",
   vmrs_1 = "eef10a10T",
