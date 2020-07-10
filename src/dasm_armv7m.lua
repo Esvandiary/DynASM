@@ -660,8 +660,13 @@ local function parse_vr(expr, tp, rp, hp)
   local tv, rv = match(expr, "^([sd])%(([^)]+)%)$")
   if tv == tp then
     -- store as action to read later
-    wimmaction(rv, 1, 4, rp, false)
-    wimmaction(rv, 0, 1, hp, false)
+    if tv == "s" then
+      wimmaction(rv, 1, 4, rp, false)
+      wimmaction(rv, 0, 1, hp, false)
+    else
+      wimmaction(rv, 0, 4, rp, false)
+      wimmaction(rv, 4, 1, hp, false)
+    end
     return 0
   end
   werror("bad register name `"..expr.."'")
