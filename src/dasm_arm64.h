@@ -30,19 +30,6 @@ enum {
 /* Maximum number of section buffer positions for a single dasm_put() call. */
 #define DASM_MAXSECPOS		25
 
-/* DynASM encoder status codes. Action list offset or number are or'ed in. */
-#define DASM_S_OK		0x00000000
-#define DASM_S_NOMEM		0x01000000
-#define DASM_S_PHASE		0x02000000
-#define DASM_S_MATCH_SEC	0x03000000
-#define DASM_S_RANGE_I		0x11000000
-#define DASM_S_RANGE_SEC	0x12000000
-#define DASM_S_RANGE_LG		0x13000000
-#define DASM_S_RANGE_PC		0x14000000
-#define DASM_S_RANGE_REL	0x15000000
-#define DASM_S_UNDEF_LG		0x21000000
-#define DASM_S_UNDEF_PC		0x22000000
-
 /* Macros to convert positions (8 bit section + 24 bit index). */
 #define DASM_POS2IDX(pos)	((pos)&0x00ffffff)
 #define DASM_POS2BIAS(pos)	((pos)&0xff000000)

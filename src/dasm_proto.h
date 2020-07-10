@@ -29,6 +29,20 @@
 #define DASM_FDEF
 #endif
 
+/* DynASM encoder status codes. Action list offset or number are or'ed in. */
+#define DASM_S_OK         0x00000000
+#define DASM_S_NOMEM      0x01000000
+#define DASM_S_PHASE      0x02000000
+#define DASM_S_MATCH_SEC  0x03000000
+#define DASM_S_RANGE_I    0x11000000
+#define DASM_S_RANGE_SEC  0x12000000
+#define DASM_S_RANGE_LG   0x13000000
+#define DASM_S_RANGE_PC   0x14000000
+#define DASM_S_RANGE_REL  0x15000000
+#define DASM_S_RANGE_VREG 0x16000000
+#define DASM_S_UNDEF_L    0x21000000
+#define DASM_S_UNDEF_PC   0x22000000
+
 #ifndef DASM_M_GROW
 #define DASM_M_GROW(ctx, t, p, sz, need) \
   do { \
