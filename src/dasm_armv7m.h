@@ -484,6 +484,7 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
           break;
         case DASM_IMM12:
           cp[-1] |= dasm_imm12((unsigned int)n);
+          if (cp[-1] == 0xFFFFFFFF) return DASM_S_RANGE_I;
           break;
         case DASM_IMM16:
           cp[-1] |= (n & 0xFF) | (((n >> 8) & 0x7) << 12) | (((n >> 11) & 0x1) << 26) | (((n >> 12) & 0xF) << 16);
