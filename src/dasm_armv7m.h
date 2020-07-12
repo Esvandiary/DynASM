@@ -503,12 +503,14 @@ DASM_FDEF int dasm_encode(Dst_DECL, void *buffer)
           const unsigned int immr = (((n >> 12) & (isimm10 ? 0x3FF : 0x3F)) << 16);
           cp[-1] |= imm11 | immr | (Sbit << 26);
           if (isimm10) {
+            // I1 = NOT(J1 EOR S); I2 = NOT(J2 EOR S); imm32 = SignExtend(S:I1:I2:imm10:imm11:'0', 32);
             const unsigned int i1 = ((n >> 1) & (1 << 22)) >> 22;
             const unsigned int i2 = ((n >> 1) & (1 << 21)) >> 21;
             const unsigned int j1 = (~(Sbit ^ i1) & 0x1) << 13;
             const unsigned int j2 = (~(Sbit ^ i2) & 0x1) << 11;
             cp[-1] |= j1 | j2;
           } else {
+            // imm32 = SignExtend(S:J2:J1:imm6:imm11:'0', 32);
             const unsigned int j1 = ((n >> 1) & (1 << 18)) >> (18 - 13);
             const unsigned int j2 = ((n >> 1) & (1 << 19)) >> (19 - 11);
             cp[-1] |= j1 | j2;

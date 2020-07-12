@@ -894,7 +894,7 @@ local function parse_label(label, def, pbase)
   local base = pbase and pbase or 0
   -- =>label (pc label reference)
   if prefix == "=>" then
-    return "PC", 0, sub(label, 3)
+    return "PC", base, sub(label, 3)
   end
   -- ->name (global label reference)
   if prefix == "->" then
